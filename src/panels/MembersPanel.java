@@ -1,10 +1,10 @@
 package panels;
 
-import com.itextpdf.text.Element;
+import com.itextpdf.text.*;
 import com.itextpdf.text.Font;
-import com.itextpdf.text.FontFactory;
-import com.itextpdf.text.Phrase;
 import com.itextpdf.text.pdf.PdfPCell;
+import com.itextpdf.text.pdf.PdfPTable;
+import com.itextpdf.text.pdf.PdfWriter;
 import db.DBHelper;
 
 import javax.swing.*;
@@ -17,7 +17,7 @@ import java.io.PrintWriter;
 import java.sql.*;
 
 public class MembersPanel extends JPanel {
-    private JTextField nameField, emailField, phoneField, searchField;
+    private JTextField fnameField, lnameField, emailField, phoneField, addressField, searchField;
     private JComboBox<String> searchByCombo;
     private JButton addButton, editButton, deleteButton, searchButton;
     private JTable membersTable;
@@ -29,30 +29,48 @@ public class MembersPanel extends JPanel {
 
         // ==== FORM PANEL ====
         JPanel formPanel = new JPanel(new GridBagLayout());
-        formPanel.setBorder(BorderFactory.createTitledBorder("Register Member"));
+        formPanel.setBorder(BorderFactory.createTitledBorder("📝 Register Member"));
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(8,8,8,8);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
+        // First Name
         gbc.gridx = 0; gbc.gridy = 0;
-        formPanel.add(new JLabel("Name:"), gbc);
+        formPanel.add(new JLabel("First Name:"), gbc);
         gbc.gridx = 1;
-        nameField = new JTextField(15);
-        formPanel.add(nameField, gbc);
+        fnameField = new JTextField(15);
+        formPanel.add(fnameField, gbc);
 
+        // Last Name
         gbc.gridx = 0; gbc.gridy = 1;
+        formPanel.add(new JLabel("Last Name:"), gbc);
+        gbc.gridx = 1;
+        lnameField = new JTextField(15);
+        formPanel.add(lnameField, gbc);
+
+        // Email
+        gbc.gridx = 0; gbc.gridy = 2;
         formPanel.add(new JLabel("Email:"), gbc);
         gbc.gridx = 1;
         emailField = new JTextField(15);
         formPanel.add(emailField, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 2;
+        // Phone
+        gbc.gridx = 0; gbc.gridy = 3;
         formPanel.add(new JLabel("Phone:"), gbc);
         gbc.gridx = 1;
         phoneField = new JTextField(15);
         formPanel.add(phoneField, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 3; gbc.gridwidth = 2; gbc.anchor = GridBagConstraints.CENTER;
+        // Address
+        gbc.gridx = 0; gbc.gridy = 4;
+        formPanel.add(new JLabel("Address:"), gbc);
+        gbc.gridx = 1;
+        addressField = new JTextField(15);
+        formPanel.add(addressField, gbc);
+
+        // Add Button
+        gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 2; gbc.anchor = GridBagConstraints.CENTER;
         addButton = new JButton("➕ Add Member");
         addButton.setToolTipText("Add a new member to the database");
         addButton.addActionListener(e -> handleAddMember());
@@ -60,7 +78,7 @@ public class MembersPanel extends JPanel {
 
         // ==== SEARCH PANEL ====
         JPanel searchPanel = new JPanel(new GridBagLayout());
-        searchPanel.setBorder(BorderFactory.createTitledBorder("Search Member"));
+        searchPanel.setBorder(BorderFactory.createTitledBorder("🔍 Search Member"));
         GridBagConstraints sgbc = new GridBagConstraints();
         sgbc.insets = new Insets(5,5,5,5);
         sgbc.fill = GridBagConstraints.HORIZONTAL;
@@ -69,7 +87,7 @@ public class MembersPanel extends JPanel {
         searchPanel.add(new JLabel("Search by:"), sgbc);
 
         sgbc.gridx = 1;
-        searchByCombo = new JComboBox<>(new String[]{"name","phone"});
+        searchByCombo = new JComboBox<>(new String[]{"fname","lname","email","phone"});
         searchPanel.add(searchByCombo, sgbc);
 
         sgbc.gridx = 0; sgbc.gridy = 1; sgbc.gridwidth = 2;
@@ -89,19 +107,23 @@ public class MembersPanel extends JPanel {
         add(topPanel, BorderLayout.NORTH);
 
         // ==== TABLE SECTION ====
-        tableModel = new DefaultTableModel(new String[]{"ID","Name","Email","Phone"},0){
+        tableModel = new DefaultTableModel(new String[]{
+                "ID","First Name","Last Name","Email","Phone","Address","Member Since"},0){
             @Override
             public boolean isCellEditable(int row,int col){ return false; }
         };
         membersTable = new JTable(tableModel);
-        add(new JScrollPane(membersTable), BorderLayout.CENTER);
 
         // Set column widths
-        membersTable.getColumnModel().getColumn(0).setPreferredWidth(2);
-        membersTable.getColumnModel().getColumn(1).setPreferredWidth(120);
-        membersTable.getColumnModel().getColumn(2).setPreferredWidth(150);
-        membersTable.getColumnModel().getColumn(3).setPreferredWidth(100);
+        membersTable.getColumnModel().getColumn(0).setPreferredWidth(40);
+        membersTable.getColumnModel().getColumn(1).setPreferredWidth(100);
+        membersTable.getColumnModel().getColumn(2).setPreferredWidth(100);
+        membersTable.getColumnModel().getColumn(3).setPreferredWidth(150);
+        membersTable.getColumnModel().getColumn(4).setPreferredWidth(100);
+        membersTable.getColumnModel().getColumn(5).setPreferredWidth(200);
+        membersTable.getColumnModel().getColumn(6).setPreferredWidth(100);
 
+        add(new JScrollPane(membersTable), BorderLayout.CENTER);
 
         // ==== FOOTER BUTTONS CENTERED ====
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.CENTER,20,10));
@@ -114,8 +136,13 @@ public class MembersPanel extends JPanel {
         editButton.addActionListener(e -> handleEdit());
         deleteButton.addActionListener(e -> handleDelete());
 
+        JButton viewHistoryButton = new JButton("📚 View Borrowing History");
+        viewHistoryButton.setToolTipText("View member's borrowing history");
+        viewHistoryButton.addActionListener(e -> viewBorrowingHistory());
+
         bottomPanel.add(editButton);
         bottomPanel.add(deleteButton);
+        bottomPanel.add(viewHistoryButton);
 
         JButton exportCSVButton = new JButton("📄 Export CSV");
         exportCSVButton.setToolTipText("Export members to CSV");
@@ -141,14 +168,16 @@ public class MembersPanel extends JPanel {
         loadMembersFromDatabase();
     }
 
-    // ===== Methods: Add, Load, Search, Edit, Delete, Export =====
+    // ===== Add Member =====
     private void handleAddMember(){
-        String name=nameField.getText().trim();
-        String email=emailField.getText().trim();
-        String phone=phoneField.getText().trim();
+        String fname = fnameField.getText().trim();
+        String lname = lnameField.getText().trim();
+        String email = emailField.getText().trim();
+        String phone = phoneField.getText().trim();
+        String address = addressField.getText().trim();
 
-        if(name.isEmpty()||email.isEmpty()||phone.isEmpty()){
-            JOptionPane.showMessageDialog(this,"Please fill all fields.");
+        if(fname.isEmpty() || lname.isEmpty() || email.isEmpty() || phone.isEmpty()){
+            JOptionPane.showMessageDialog(this,"Please fill all required fields (First Name, Last Name, Email, Phone).");
             return;
         }
 
@@ -157,201 +186,306 @@ public class MembersPanel extends JPanel {
             return;
         }
 
+        if (!email.matches("^[\\w.-]+@[\\w.-]+\\.\\w+$")) {
+            JOptionPane.showMessageDialog(this, "Invalid email format.");
+            return;
+        }
 
-        try(Connection conn=DBHelper.getConnection()){
-            String sql="INSERT INTO members (fname,lname,email,phone) VALUES (?,?,?)";
-            PreparedStatement stmt=conn.prepareStatement(sql);
-            stmt.setString(1,fname);
-            stmt.setString(1,lname);
-            stmt.setString(2,email);
-            stmt.setString(3,phone);
+        try(Connection conn = DBHelper.getConnection()){
+            // Check if email already exists
+            String checkSql = "SELECT COUNT(*) FROM members WHERE email=?";
+            PreparedStatement checkStmt = conn.prepareStatement(checkSql);
+            checkStmt.setString(1, email);
+            ResultSet rs = checkStmt.executeQuery();
+            rs.next();
+            if(rs.getInt(1) > 0) {
+                JOptionPane.showMessageDialog(this, "❌ Email already exists!");
+                return;
+            }
+
+            String sql = "INSERT INTO members (fname, lname, email, phone, address) VALUES (?,?,?,?,?)";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            stmt.setString(1, fname);
+            stmt.setString(2, lname);
+            stmt.setString(3, email);
+            stmt.setString(4, phone);
+            stmt.setString(5, address.isEmpty() ? null : address);
             stmt.executeUpdate();
 
-            JOptionPane.showMessageDialog(this,"✅ Member added.");
+            JOptionPane.showMessageDialog(this,"✅ Member added successfully.");
             clearForm();
             loadMembersFromDatabase();
-        }catch(SQLException e){ e.printStackTrace(); JOptionPane.showMessageDialog(this,"Error: "+e.getMessage()); }
+        }catch(SQLException e){
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(this,"Error: "+e.getMessage());
+        }
     }
 
+    // ===== Load Members =====
     private void loadMembersFromDatabase(){
         tableModel.setRowCount(0);
-        try(Connection conn=DBHelper.getConnection()){
-            String sql="SELECT id,fname,lname,email,phone FROM members";
-            Statement stmt=conn.createStatement();
-            ResultSet rs=stmt.executeQuery(sql);
+        try(Connection conn = DBHelper.getConnection()){
+            String sql = "SELECT id, fname, lname, email, phone, address, membership_date " +
+                    "FROM members WHERE is_active=TRUE ORDER BY fname, lname";
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery(sql);
             while(rs.next()){
                 tableModel.addRow(new Object[]{
                         rs.getInt("id"),
                         rs.getString("fname"),
                         rs.getString("lname"),
                         rs.getString("email"),
-                        rs.getString("phone")
+                        rs.getString("phone"),
+                        rs.getString("address"),
+                        rs.getDate("membership_date")
                 });
             }
         }catch(SQLException e){ e.printStackTrace(); }
     }
 
+    // ===== Search =====
     private void handleSearch(){
-        String keyword=searchField.getText().trim().toLowerCase();
-        String column=searchByCombo.getSelectedItem().toString();
+        String keyword = searchField.getText().trim().toLowerCase();
+        String column = searchByCombo.getSelectedItem().toString();
         if(keyword.isEmpty()){ loadMembersFromDatabase(); return; }
 
-        try(Connection conn=DBHelper.getConnection()){
-            String sql="SELECT * FROM members WHERE LOWER("+column+") LIKE ?";
-            PreparedStatement stmt=conn.prepareStatement(sql);
-            stmt.setString(1,"%"+keyword+"%");
-            ResultSet rs=stmt.executeQuery();
+        try(Connection conn = DBHelper.getConnection()){
+            String sql = "SELECT * FROM members WHERE LOWER("+column+") LIKE ? AND is_active=TRUE ORDER BY fname, lname";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            stmt.setString(1, "%"+keyword+"%");
+            ResultSet rs = stmt.executeQuery();
             tableModel.setRowCount(0);
             while(rs.next()){
                 tableModel.addRow(new Object[]{
                         rs.getInt("id"),
-                        rs.getString("name"),
+                        rs.getString("fname"),
+                        rs.getString("lname"),
                         rs.getString("email"),
-                        rs.getString("phone")
+                        rs.getString("phone"),
+                        rs.getString("address"),
+                        rs.getDate("membership_date")
                 });
             }
         }catch(SQLException e){ e.printStackTrace(); }
     }
 
+    // ===== Edit =====
     private void handleEdit(){
-        int row=membersTable.getSelectedRow();
-        if(row==-1){ JOptionPane.showMessageDialog(this,"Select a member to edit."); return; }
+        int row = membersTable.getSelectedRow();
+        if(row == -1){
+            JOptionPane.showMessageDialog(this,"Select a member to edit.");
+            return;
+        }
 
-        int id=(int)tableModel.getValueAt(row,0);
-        String currentName=(String)tableModel.getValueAt(row,1);
-        String currentEmail=(String)tableModel.getValueAt(row,2);
-        String currentPhone=(String)tableModel.getValueAt(row,3);
+        int id = (int)tableModel.getValueAt(row, 0);
+        String currentFname = (String)tableModel.getValueAt(row, 1);
+        String currentLname = (String)tableModel.getValueAt(row, 2);
+        String currentEmail = (String)tableModel.getValueAt(row, 3);
+        String currentPhone = (String)tableModel.getValueAt(row, 4);
+        String currentAddress = (String)tableModel.getValueAt(row, 5);
 
-        String newName=JOptionPane.showInputDialog(this,"New Name:",currentName);
-        if(newName==null || newName.trim().isEmpty()){ JOptionPane.showMessageDialog(this,"Name cannot be empty."); return; }
+        String newFname = JOptionPane.showInputDialog(this, "New First Name:", currentFname);
+        if(newFname == null || newFname.trim().isEmpty()) return;
 
-        String newEmail=JOptionPane.showInputDialog(this,"New Email:",currentEmail);
-        if(newEmail==null || !newEmail.matches("^[\\w.-]+@[\\w.-]+\\.\\w+$")){ JOptionPane.showMessageDialog(this,"Invalid email."); return; }
+        String newLname = JOptionPane.showInputDialog(this, "New Last Name:", currentLname);
+        if(newLname == null || newLname.trim().isEmpty()) return;
 
-        String newPhone=JOptionPane.showInputDialog(this,"New Phone:",currentPhone);
-        if(newPhone==null || !newPhone.matches("\\d{10}")){ JOptionPane.showMessageDialog(this,"Phone must be exactly 10 digits."); return; }
+        String newEmail = JOptionPane.showInputDialog(this, "New Email:", currentEmail);
+        if(newEmail == null || !newEmail.matches("^[\\w.-]+@[\\w.-]+\\.\\w+$")){
+            JOptionPane.showMessageDialog(this,"Invalid email.");
+            return;
+        }
 
-        try(Connection conn=DBHelper.getConnection()){
-            String checkSql="SELECT COUNT(*) FROM members WHERE email=? AND id<>?";
-            PreparedStatement checkStmt=conn.prepareStatement(checkSql);
-            checkStmt.setString(1,newEmail);
-            checkStmt.setInt(2,id);
-            ResultSet rs=checkStmt.executeQuery();
+        String newPhone = JOptionPane.showInputDialog(this, "New Phone:", currentPhone);
+        if(newPhone == null || !newPhone.matches("\\d{10}")){
+            JOptionPane.showMessageDialog(this,"Phone must be exactly 10 digits.");
+            return;
+        }
+
+        String newAddress = JOptionPane.showInputDialog(this, "New Address:", currentAddress);
+        if(newAddress == null) return;
+
+        try(Connection conn = DBHelper.getConnection()){
+            // Check if new email is already used by another member
+            String checkSql = "SELECT COUNT(*) FROM members WHERE email=? AND id!=?";
+            PreparedStatement checkStmt = conn.prepareStatement(checkSql);
+            checkStmt.setString(1, newEmail);
+            checkStmt.setInt(2, id);
+            ResultSet rs = checkStmt.executeQuery();
             rs.next();
-            if(rs.getInt(1)>0){ JOptionPane.showMessageDialog(this,"❌ Email already exists."); return; }
+            if(rs.getInt(1) > 0) {
+                JOptionPane.showMessageDialog(this, "❌ Email already exists!");
+                return;
+            }
 
-            String sql="UPDATE members SET name=?, email=?, phone=? WHERE id=?";
-            PreparedStatement stmt=conn.prepareStatement(sql);
-            stmt.setString(1,newName);
-            stmt.setString(2,newEmail);
-            stmt.setString(3,newPhone);
-            stmt.setInt(4,id);
+            String sql = "UPDATE members SET fname=?, lname=?, email=?, phone=?, address=? WHERE id=?";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            stmt.setString(1, newFname);
+            stmt.setString(2, newLname);
+            stmt.setString(3, newEmail);
+            stmt.setString(4, newPhone);
+            stmt.setString(5, newAddress.trim().isEmpty() ? null : newAddress);
+            stmt.setInt(6, id);
             stmt.executeUpdate();
 
             JOptionPane.showMessageDialog(this,"✅ Member updated successfully.");
             loadMembersFromDatabase();
-        }catch(SQLException e){ e.printStackTrace(); JOptionPane.showMessageDialog(this,"Error: "+e.getMessage()); }
+        }catch(SQLException e){
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(this,"Error: "+e.getMessage());
+        }
     }
 
+    // ===== Delete =====
     private void handleDelete(){
-        int row=membersTable.getSelectedRow();
-        if(row==-1){ JOptionPane.showMessageDialog(this,"Select a member to delete."); return; }
+        int row = membersTable.getSelectedRow();
+        if(row == -1){
+            JOptionPane.showMessageDialog(this,"Select a member to delete.");
+            return;
+        }
 
-        int id=(int)tableModel.getValueAt(row,0);
-        int confirm=JOptionPane.showConfirmDialog(this,"Are you sure you want to delete this member?","Confirm",JOptionPane.YES_NO_OPTION);
-        if(confirm!=JOptionPane.YES_OPTION) return;
+        int id = (int)tableModel.getValueAt(row, 0);
+        String name = tableModel.getValueAt(row, 1) + " " + tableModel.getValueAt(row, 2);
 
-        try(Connection conn=DBHelper.getConnection()){
-            String sql="DELETE FROM members WHERE id=?";
-            PreparedStatement stmt=conn.prepareStatement(sql);
-            stmt.setInt(1,id);
+        int confirm = JOptionPane.showConfirmDialog(this,
+                "Are you sure you want to delete member: " + name + "?",
+                "Confirm Delete",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+
+        if(confirm != JOptionPane.YES_OPTION) return;
+
+        try(Connection conn = DBHelper.getConnection()){
+            // Soft delete - set is_active to FALSE
+            String sql = "UPDATE members SET is_active=FALSE WHERE id=?";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            stmt.setInt(1, id);
             stmt.executeUpdate();
-            JOptionPane.showMessageDialog(this,"✅ Member deleted.");
+
+            JOptionPane.showMessageDialog(this,"✅ Member deactivated.");
             loadMembersFromDatabase();
-        }catch(SQLException e){ e.printStackTrace(); JOptionPane.showMessageDialog(this,"Error: "+e.getMessage()); }
+        }catch(SQLException e){
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(this,"Error: "+e.getMessage());
+        }
     }
 
+    // ===== View Borrowing History =====
+    private void viewBorrowingHistory() {
+        int row = membersTable.getSelectedRow();
+        if(row == -1) {
+            JOptionPane.showMessageDialog(this, "Select a member to view history!");
+            return;
+        }
+
+        int memberId = (int)tableModel.getValueAt(row, 0);
+        String memberName = tableModel.getValueAt(row, 1) + " " + tableModel.getValueAt(row, 2);
+
+        try(Connection conn = DBHelper.getConnection()) {
+            String sql = "SELECT b.title, b.author, bb.borrow_date, bb.due_date, bb.return_date, bb.status " +
+                    "FROM borrowed_books bb " +
+                    "JOIN books b ON bb.book_id = b.id " +
+                    "WHERE bb.member_id = ? " +
+                    "ORDER BY bb.borrow_date DESC";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            stmt.setInt(1, memberId);
+            ResultSet rs = stmt.executeQuery();
+
+            StringBuilder history = new StringBuilder();
+            history.append("═══════════════════════════════════\n");
+            history.append("  BORROWING HISTORY: ").append(memberName).append("\n");
+            history.append("═══════════════════════════════════\n\n");
+
+            boolean hasHistory = false;
+            while(rs.next()) {
+                hasHistory = true;
+                history.append("📚 ").append(rs.getString("title")).append("\n");
+                history.append("   Author: ").append(rs.getString("author")).append("\n");
+                history.append("   Borrowed: ").append(rs.getDate("borrow_date")).append("\n");
+                history.append("   Due: ").append(rs.getDate("due_date")).append("\n");
+                Date returnDate = rs.getDate("return_date");
+                history.append("   Returned: ").append(returnDate != null ? returnDate : "Not yet").append("\n");
+                history.append("   Status: ").append(rs.getString("status")).append("\n");
+                history.append("───────────────────────────────────\n");
+            }
+
+            if(!hasHistory) {
+                history.append("No borrowing history found.\n");
+            }
+
+            JTextArea textArea = new JTextArea(history.toString());
+            textArea.setEditable(false);
+            textArea.setFont(new java.awt.Font("Monospaced", java.awt.Font.PLAIN, 12));
+            JScrollPane scrollPane = new JScrollPane(textArea);
+            scrollPane.setPreferredSize(new Dimension(500, 400));
+
+            JOptionPane.showMessageDialog(this, scrollPane,
+                    "Borrowing History", JOptionPane.INFORMATION_MESSAGE);
+
+        } catch(SQLException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Error: " + e.getMessage());
+        }
+    }
+
+    // ===== Export CSV =====
     private void exportToCSV(File file){
-        try(PrintWriter pw=new PrintWriter(file)){
-            for(int i=0;i<tableModel.getColumnCount();i++){
+        try(PrintWriter pw = new PrintWriter(file)){
+            for(int i=0; i<tableModel.getColumnCount(); i++){
                 pw.print(tableModel.getColumnName(i));
-                if(i<tableModel.getColumnCount()-1) pw.print(","); // CSV comma separator
+                if(i < tableModel.getColumnCount()-1) pw.print(",");
             }
             pw.println();
-            for(int row=0;row<tableModel.getRowCount();row++){
-                for(int col=0;col<tableModel.getColumnCount();col++){
-                    pw.print(tableModel.getValueAt(row,col));
-                    if(col<tableModel.getColumnCount()-1) pw.print(",");
+            for(int row=0; row<tableModel.getRowCount(); row++){
+                for(int col=0; col<tableModel.getColumnCount(); col++){
+                    Object value = tableModel.getValueAt(row, col);
+                    pw.print(value != null ? value : "");
+                    if(col < tableModel.getColumnCount()-1) pw.print(",");
                 }
                 pw.println();
             }
-            JOptionPane.showMessageDialog(this,"Exported to CSV successfully!");
-        }catch(IOException ex){ ex.printStackTrace(); JOptionPane.showMessageDialog(this,"Error: "+ex.getMessage()); }
+            JOptionPane.showMessageDialog(this,"✅ Exported to CSV successfully!");
+        }catch(IOException ex){
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(this,"Error: "+ex.getMessage());
+        }
     }
 
-    private void exportToPDF(File selectedFile) {
+    // ===== Export PDF =====
+    private void exportToPDF(File file) {
         try {
-            JFileChooser fileChooser = new JFileChooser();
-            if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-                File file = fileChooser.getSelectedFile();
-
-                // Ensure .pdf extension
-                if (!file.getName().toLowerCase().endsWith(".pdf")) {
-                    file = new File(file.getAbsolutePath() + ".pdf");
-                }
-
-                // Check if file already exists
-                if (file.exists()) {
-                    int choice = JOptionPane.showConfirmDialog(
-                            this,
-                            "The file \"" + file.getName() + "\" already exists.\nDo you want to replace it?",
-                            "Confirm Overwrite",
-                            JOptionPane.YES_NO_OPTION,
-                            JOptionPane.WARNING_MESSAGE
-                    );
-
-                    if (choice != JOptionPane.YES_OPTION) {
-                        return; // user cancelled
-                    }
-                }
-
-                // 👉 Start writing the PDF
-                com.itextpdf.text.Document document = new com.itextpdf.text.Document();
-                com.itextpdf.text.pdf.PdfWriter.getInstance(document, new FileOutputStream(file));
-                document.open();
-
-                document.add(new com.itextpdf.text.Paragraph("Members List\n\n"));
-
-                com.itextpdf.text.pdf.PdfPTable pdfTable = new com.itextpdf.text.pdf.PdfPTable(tableModel.getColumnCount());
-
-                // Set custom widths (adjust to your table structure)
-                float[] columnWidths = {1f, 3f, 4f, 2f};
-                pdfTable.setWidths(columnWidths);
-                pdfTable.setWidthPercentage(100);
-
-                // Define header font (bold)
-                Font headerFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12);
-
-                // Add headers
-                for (int i = 0; i < tableModel.getColumnCount(); i++) {
-                    PdfPCell headerCell = new PdfPCell(new Phrase(tableModel.getColumnName(i), headerFont));
-                    headerCell.setHorizontalAlignment(Element.ALIGN_CENTER);
-                    headerCell.setBorderWidth(1f);
-                    pdfTable.addCell(headerCell);
-                }
-
-                // Add rows
-                for (int row = 0; row < tableModel.getRowCount(); row++) {
-                    for (int col = 0; col < tableModel.getColumnCount(); col++) {
-                        pdfTable.addCell(String.valueOf(tableModel.getValueAt(row, col)));
-                    }
-                }
-
-                document.add(pdfTable);
-                document.close();
-
-                JOptionPane.showMessageDialog(this, "Exported to PDF successfully!");
+            if (!file.getName().toLowerCase().endsWith(".pdf")) {
+                file = new File(file.getAbsolutePath() + ".pdf");
             }
+
+            Document document = new Document();
+            PdfWriter.getInstance(document, new FileOutputStream(file));
+            document.open();
+            document.add(new Paragraph("Members List\n\n"));
+
+            PdfPTable pdfTable = new PdfPTable(tableModel.getColumnCount());
+            float[] columnWidths = {1f, 2f, 2f, 3f, 2f, 3f, 2f};
+            pdfTable.setWidths(columnWidths);
+            pdfTable.setWidthPercentage(100);
+
+            Font headerFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10);
+
+            for (int i = 0; i < tableModel.getColumnCount(); i++) {
+                PdfPCell headerCell = new PdfPCell(new Phrase(tableModel.getColumnName(i), headerFont));
+                headerCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+                pdfTable.addCell(headerCell);
+            }
+
+            for (int row = 0; row < tableModel.getRowCount(); row++) {
+                for (int col = 0; col < tableModel.getColumnCount(); col++) {
+                    Object value = tableModel.getValueAt(row, col);
+                    pdfTable.addCell(value != null ? value.toString() : "");
+                }
+            }
+
+            document.add(pdfTable);
+            document.close();
+            JOptionPane.showMessageDialog(this, "✅ Exported to PDF successfully!");
 
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -359,11 +493,12 @@ public class MembersPanel extends JPanel {
         }
     }
 
-
-
+    // ===== Clear Form =====
     private void clearForm(){
-        nameField.setText("");
+        fnameField.setText("");
+        lnameField.setText("");
         emailField.setText("");
         phoneField.setText("");
+        addressField.setText("");
     }
 }
