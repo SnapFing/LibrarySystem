@@ -159,9 +159,10 @@ public class MembersPanel extends JPanel {
 
 
         try(Connection conn=DBHelper.getConnection()){
-            String sql="INSERT INTO members (name,email,phone) VALUES (?,?,?)";
+            String sql="INSERT INTO members (fname,lname,email,phone) VALUES (?,?,?)";
             PreparedStatement stmt=conn.prepareStatement(sql);
-            stmt.setString(1,name);
+            stmt.setString(1,fname);
+            stmt.setString(1,lname);
             stmt.setString(2,email);
             stmt.setString(3,phone);
             stmt.executeUpdate();
@@ -175,13 +176,14 @@ public class MembersPanel extends JPanel {
     private void loadMembersFromDatabase(){
         tableModel.setRowCount(0);
         try(Connection conn=DBHelper.getConnection()){
-            String sql="SELECT id,name,email,phone FROM members";
+            String sql="SELECT id,fname,lname,email,phone FROM members";
             Statement stmt=conn.createStatement();
             ResultSet rs=stmt.executeQuery(sql);
             while(rs.next()){
                 tableModel.addRow(new Object[]{
                         rs.getInt("id"),
-                        rs.getString("name"),
+                        rs.getString("fname"),
+                        rs.getString("lname"),
                         rs.getString("email"),
                         rs.getString("phone")
                 });
@@ -287,7 +289,7 @@ public class MembersPanel extends JPanel {
         }catch(IOException ex){ ex.printStackTrace(); JOptionPane.showMessageDialog(this,"Error: "+ex.getMessage()); }
     }
 
-    private void exportToPDF() {
+    private void exportToPDF(File selectedFile) {
         try {
             JFileChooser fileChooser = new JFileChooser();
             if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
