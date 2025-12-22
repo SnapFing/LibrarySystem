@@ -68,7 +68,7 @@ public class LibrarySystemUI extends JFrame {
 
     /* ================= TOP BAR ================= */
     private JPanel createTopBar() {
-        RoundedPanel topBar = new RoundedPanel(60);
+        RoundedPanel topBar = new RoundedPanel(10);
         topBar.setLayout(new BorderLayout());
         topBar.setBorder(BorderFactory.createEmptyBorder(12, 20, 12, 20));
         topBar.setBackground(new Color(30, 30, 30));
