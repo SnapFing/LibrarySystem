@@ -26,6 +26,9 @@ CREATE TABLE users (
     INDEX idx_username (username)
 );
 
+-- BCrypt hashes are 60 characters long
+ALTER TABLE users MODIFY COLUMN password VARCHAR(60) NOT NULL;
+
 -- ============================================
 -- 2. MEMBERS TABLE (Library patrons)
 -- Split name into fname/lname for better queries

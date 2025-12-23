@@ -2,6 +2,7 @@ package panels;
 
 import com.formdev.flatlaf.FlatDarculaLaf;
 import db.DBHelper;
+import utils.PasswordUtil;
 
 import javax.swing.*;
 import java.awt.*;
@@ -24,8 +25,12 @@ public class LoginUI extends JFrame {
         setResizable(false);
 
         // ===== Set Custom Icon =====
-        ImageIcon icon = new ImageIcon(getClass().getResource("/panels/SNAPFING-LOGO.png"));
-        setIconImage(icon.getImage());
+        try {
+            ImageIcon icon = new ImageIcon(getClass().getResource("/panels/SNAPFING-LOGO.png"));
+            setIconImage(icon.getImage());
+        } catch (Exception e) {
+            // Icon not found, continue without it
+        }
 
         // ===== Background Panel =====
         BackgroundPanel background = new BackgroundPanel("/panels/lib1.jpg");
@@ -37,17 +42,21 @@ public class LoginUI extends JFrame {
         logoPanel.setOpaque(false);
         logoPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 0, 30));
 
-        ImageIcon logoIcon = new ImageIcon(getClass().getResource("/panels/SNAPFING-LOGO.png"));
-        Image scaledLogo = logoIcon.getImage().getScaledInstance(150, 150, Image.SCALE_SMOOTH);
-        JLabel logoLabel = new JLabel(new ImageIcon(scaledLogo));
-        logoPanel.add(logoLabel);
+        try {
+            ImageIcon logoIcon = new ImageIcon(getClass().getResource("/panels/SNAPFING-LOGO.png"));
+            Image scaledLogo = logoIcon.getImage().getScaledInstance(150, 150, Image.SCALE_SMOOTH);
+            JLabel logoLabel = new JLabel(new ImageIcon(scaledLogo));
+            logoPanel.add(logoLabel);
+        } catch (Exception e) {
+            // Logo not found, continue without it
+        }
 
         background.add(logoPanel, BorderLayout.NORTH);
 
         // ===== Login Form Panel =====
-        RoundedPanel formPanel = new RoundedPanel(20); // radius = 20
+        RoundedPanel formPanel = new RoundedPanel(20);
         formPanel.setLayout(new GridBagLayout());
-        formPanel.setBackground(new Color(0, 0, 0, 180)); // semi-transparent black
+        formPanel.setBackground(new Color(0, 0, 0, 180));
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(10, 15, 10, 15);
         gbc.fill = GridBagConstraints.HORIZONTAL;
@@ -119,45 +128,145 @@ public class LoginUI extends JFrame {
             return;
         }
 
-        login(username, password);
-    }
+        // Disable login button to prevent multiple clicks
+        loginButton.setEnabled(false);
+        statusLabel.setText("Authenticating...");
+        statusLabel.setForeground(Color.YELLOW);
 
-    private void login(String username, String password) {
-        try (Connection conn = DBHelper.getConnection()) {
-            String sql = "SELECT role FROM users WHERE username=? AND password=?";
-            PreparedStatement stmt = conn.prepareStatement(sql);
-            stmt.setString(1, username);
-            stmt.setString(2, password);
+        // Perform login in background thread to keep UI responsive
+        SwingWorker<Boolean, Void> worker = new SwingWorker<Boolean, Void>() {
+            private String role;
+            private String errorMessage;
 
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                String role = rs.getString("role");
-                JOptionPane.showMessageDialog(this, "Login successful! Role: " + role);
-
-                SwingUtilities.invokeLater(() -> new LibrarySystemUI(role));
-                dispose();
-            } else {
-                statusLabel.setText("Invalid username or password.");
+            @Override
+            protected Boolean doInBackground() {
+                return login(username, password);
             }
-        } catch (Exception ex) {
-            ex.printStackTrace();
-            statusLabel.setText("Error connecting to database.");
-        }
+
+            @Override
+            protected void done() {
+                try {
+                    Boolean success = get();
+                    if (success) {
+                        JOptionPane.showMessageDialog(LoginUI.this,
+                                "✅ Login successful! Role: " + role,
+                                "Success",
+                                JOptionPane.INFORMATION_MESSAGE);
+                        SwingUtilities.invokeLater(() -> new LibrarySystemUI(role));
+                        dispose();
+                    } else {
+                        statusLabel.setText(errorMessage);
+                        statusLabel.setForeground(Color.RED);
+                        loginButton.setEnabled(true);
+                        // Clear password field for security
+                        passwordField.setText("");
+                    }
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    statusLabel.setText("An error occurred during login.");
+                    statusLabel.setForeground(Color.RED);
+                    loginButton.setEnabled(true);
+                }
+            }
+
+            private boolean login(String username, String password) {
+                try (Connection conn = DBHelper.getConnection()) {
+                    // First, check if user exists and is active
+                    String sql = "SELECT id, password, role, is_active FROM users WHERE username=?";
+                    PreparedStatement stmt = conn.prepareStatement(sql);
+                    stmt.setString(1, username);
+
+                    ResultSet rs = stmt.executeQuery();
+                    if (rs.next()) {
+                        // Check if account is active
+                        boolean isActive = rs.getBoolean("is_active");
+                        if (!isActive) {
+                            errorMessage = "Account is deactivated. Contact administrator.";
+                            return false;
+                        }
+
+                        String storedHash = rs.getString("password");
+                        role = rs.getString("role");
+
+                        // Verify password using BCrypt
+                        if (PasswordUtil.verifyPassword(password, storedHash)) {
+                            // Password is correct
+                            int userId = rs.getInt("id");
+
+                            // Check if password needs rehashing (security improvement)
+                            if (PasswordUtil.needsRehash(storedHash)) {
+                                String newHash = PasswordUtil.hashPassword(password);
+                                String updateSql = "UPDATE users SET password=? WHERE id=?";
+                                PreparedStatement updateStmt = conn.prepareStatement(updateSql);
+                                updateStmt.setString(1, newHash);
+                                updateStmt.setInt(2, userId);
+                                updateStmt.executeUpdate();
+                            }
+
+                            // Update last login timestamp
+                            String updateLoginSql = "UPDATE users SET last_login=CURRENT_TIMESTAMP WHERE id=?";
+                            PreparedStatement loginStmt = conn.prepareStatement(updateLoginSql);
+                            loginStmt.setInt(1, userId);
+                            loginStmt.executeUpdate();
+
+                            return true;
+                        } else {
+                            // Invalid password
+                            errorMessage = "Invalid username or password.";
+
+                            // Optional: Log failed login attempt
+                            logFailedAttempt(conn, username);
+
+                            return false;
+                        }
+                    } else {
+                        // User not found
+                        errorMessage = "Invalid username or password.";
+                        return false;
+                    }
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    errorMessage = "Database connection error.";
+                    return false;
+                }
+            }
+
+            private void logFailedAttempt(Connection conn, String username) {
+                try {
+                    String sql = "INSERT INTO audit_logs (user_id, action, details) " +
+                            "VALUES ((SELECT id FROM users WHERE username=? LIMIT 1), 'FAILED_LOGIN', ?)";
+                    PreparedStatement stmt = conn.prepareStatement(sql);
+                    stmt.setString(1, username);
+                    stmt.setString(2, "Failed login attempt for username: " + username);
+                    stmt.executeUpdate();
+                } catch (Exception e) {
+                    // Silently fail - logging shouldn't interrupt main flow
+                }
+            }
+        };
+
+        worker.execute();
     }
 
     // ===== Background Panel Class =====
     static class BackgroundPanel extends JPanel {
-        private final Image backgroundImage;
+        private Image backgroundImage;
 
         public BackgroundPanel(String imagePath) {
-            ImageIcon icon = new ImageIcon(getClass().getResource(imagePath));
-            backgroundImage = icon.getImage();
+            try {
+                ImageIcon icon = new ImageIcon(getClass().getResource(imagePath));
+                backgroundImage = icon.getImage();
+            } catch (Exception e) {
+                backgroundImage = null;
+            }
         }
 
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
-            g.drawImage(backgroundImage, 0, 0, getWidth(), getHeight(), this);
+            if (backgroundImage != null) {
+                g.drawImage(backgroundImage, 0, 0, getWidth(), getHeight(), this);
+            }
         }
     }
 
@@ -175,19 +284,19 @@ public class LoginUI extends JFrame {
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-            // Background with transparency
             g2.setColor(getBackground());
             g2.fillRoundRect(0, 0, getWidth(), getHeight(), cornerRadius, cornerRadius);
-
             g2.dispose();
             super.paintComponent(g);
         }
     }
 
     public static void main(String[] args) {
-        try { UIManager.setLookAndFeel(new FlatDarculaLaf()); }
-        catch (Exception ex) { System.err.println("Failed to initialize LookAndFeel"); }
+        try {
+            UIManager.setLookAndFeel(new FlatDarculaLaf());
+        } catch (Exception ex) {
+            System.err.println("Failed to initialize LookAndFeel");
+        }
         SwingUtilities.invokeLater(LoginUI::new);
     }
 }
