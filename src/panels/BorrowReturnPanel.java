@@ -140,7 +140,7 @@ public class BorrowReturnPanel extends JPanel {
 
         bottomPanel.add(returnButton);
         bottomPanel.add(markOverdueButton);
-        bottomPanel.add(viewFinesButton);
+        //bottomPanel.add(viewFinesButton);
         bottomPanel.add(exportPDFButton);
         add(bottomPanel, BorderLayout.SOUTH);
 
