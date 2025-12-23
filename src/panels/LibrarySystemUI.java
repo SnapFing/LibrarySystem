@@ -146,6 +146,7 @@ public class LibrarySystemUI extends JFrame {
         if ("Admin".equalsIgnoreCase(userRole)) {
             tabbedPane.addTab("📖 Books", null, new BooksPanel(), "Manage book inventory");
             tabbedPane.addTab("👤 Users", null, new UserManagementPanel(), "Manage system users");
+            tabbedPane.addTab("📊 DB Monitor", null, new DatabaseMonitorPanel(), "Monitor database connection pool");
         }
 
         return tabbedPane;

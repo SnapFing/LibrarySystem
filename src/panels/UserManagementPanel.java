@@ -1,6 +1,7 @@
 package panels;
 
 import db.DBHelper;
+import utils.PasswordUtil;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -73,7 +74,7 @@ public class UserManagementPanel extends JPanel {
         searchPanel.add(new JLabel("Search Username:"), sgbc);
         sgbc.gridx = 1;
         searchField = new JTextField(15);
-        searchPanel.add(searchField, gbc);
+        searchPanel.add(searchField, sgbc);
 
         sgbc.gridx = 0; sgbc.gridy = 1; sgbc.gridwidth = 2;
         JPanel searchButtonPanel = new JPanel(new FlowLayout());
@@ -214,24 +215,24 @@ public class UserManagementPanel extends JPanel {
         }
     }
 
-    // ===== Add User =====
+    // ===== Add User (WITH PASSWORD HASHING) =====
     private void addUser() {
         String username = usernameField.getText().trim();
         String password = new String(passwordField.getPassword()).trim();
         String role = (String) roleCombo.getSelectedItem();
 
         if (username.isEmpty() || password.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Please enter username and password!");
+            JOptionPane.showMessageDialog(this, "❌ Please enter username and password!");
             return;
         }
 
         if (username.length() < 3) {
-            JOptionPane.showMessageDialog(this, "Username must be at least 3 characters!");
+            JOptionPane.showMessageDialog(this, "❌ Username must be at least 3 characters!");
             return;
         }
 
         if (password.length() < 6) {
-            JOptionPane.showMessageDialog(this, "Password must be at least 6 characters!");
+            JOptionPane.showMessageDialog(this, "❌ Password must be at least 6 characters!");
             return;
         }
 
@@ -247,20 +248,23 @@ public class UserManagementPanel extends JPanel {
                 return;
             }
 
-            // Insert new user
+            // Hash the password using BCrypt
+            String hashedPassword = PasswordUtil.hashPassword(password);
+
+            // Insert new user with hashed password
             String sql = "INSERT INTO users (username, password, role) VALUES (?, ?, ?)";
             PreparedStatement stmt = conn.prepareStatement(sql);
             stmt.setString(1, username);
-            stmt.setString(2, password); // TODO: Hash password in production!
+            stmt.setString(2, hashedPassword);
             stmt.setString(3, role);
             stmt.executeUpdate();
 
-            JOptionPane.showMessageDialog(this, "✅ User added successfully!");
+            JOptionPane.showMessageDialog(this, "✅ User added successfully with secure password!");
             clearForm();
             loadUsers();
         } catch (Exception ex) {
             ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Error adding user: " + ex.getMessage());
+            JOptionPane.showMessageDialog(this, "❌ Error adding user: " + ex.getMessage());
         }
     }
 
@@ -268,7 +272,7 @@ public class UserManagementPanel extends JPanel {
     private void editUser() {
         int row = usersTable.getSelectedRow();
         if (row == -1) {
-            JOptionPane.showMessageDialog(this, "Please select a user to edit!");
+            JOptionPane.showMessageDialog(this, "❌ Please select a user to edit!");
             return;
         }
 
@@ -308,15 +312,15 @@ public class UserManagementPanel extends JPanel {
             loadUsers();
         } catch (Exception ex) {
             ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Error updating user: " + ex.getMessage());
+            JOptionPane.showMessageDialog(this, "❌ Error updating user: " + ex.getMessage());
         }
     }
 
-    // ===== Reset Password =====
+    // ===== Reset Password (WITH PASSWORD HASHING) =====
     private void resetPassword() {
         int row = usersTable.getSelectedRow();
         if (row == -1) {
-            JOptionPane.showMessageDialog(this, "Please select a user!");
+            JOptionPane.showMessageDialog(this, "❌ Please select a user!");
             return;
         }
 
@@ -340,7 +344,7 @@ public class UserManagementPanel extends JPanel {
             String confirmPassword = new String(confirmPasswordField.getPassword());
 
             if (newPassword.isEmpty() || confirmPassword.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Please fill all fields!");
+                JOptionPane.showMessageDialog(this, "❌ Please fill all fields!");
                 return;
             }
 
@@ -350,21 +354,24 @@ public class UserManagementPanel extends JPanel {
             }
 
             if (newPassword.length() < 6) {
-                JOptionPane.showMessageDialog(this, "Password must be at least 6 characters!");
+                JOptionPane.showMessageDialog(this, "❌ Password must be at least 6 characters!");
                 return;
             }
 
             try (Connection conn = DBHelper.getConnection()) {
+                // Hash the new password using BCrypt
+                String hashedPassword = PasswordUtil.hashPassword(newPassword);
+
                 String sql = "UPDATE users SET password=? WHERE id=?";
                 PreparedStatement stmt = conn.prepareStatement(sql);
-                stmt.setString(1, newPassword); // TODO: Hash password in production!
+                stmt.setString(1, hashedPassword);
                 stmt.setInt(2, id);
                 stmt.executeUpdate();
 
-                JOptionPane.showMessageDialog(this, "✅ Password reset successfully!");
+                JOptionPane.showMessageDialog(this, "✅ Password reset successfully with secure encryption!");
             } catch (Exception ex) {
                 ex.printStackTrace();
-                JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage());
+                JOptionPane.showMessageDialog(this, "❌ Error: " + ex.getMessage());
             }
         }
     }
@@ -373,7 +380,7 @@ public class UserManagementPanel extends JPanel {
     private void toggleUserStatus() {
         int row = usersTable.getSelectedRow();
         if (row == -1) {
-            JOptionPane.showMessageDialog(this, "Please select a user!");
+            JOptionPane.showMessageDialog(this, "❌ Please select a user!");
             return;
         }
 
@@ -402,7 +409,7 @@ public class UserManagementPanel extends JPanel {
             loadUsers();
         } catch (Exception ex) {
             ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage());
+            JOptionPane.showMessageDialog(this, "❌ Error: " + ex.getMessage());
         }
     }
 
@@ -410,7 +417,7 @@ public class UserManagementPanel extends JPanel {
     private void deleteUser() {
         int row = usersTable.getSelectedRow();
         if (row == -1) {
-            JOptionPane.showMessageDialog(this, "Please select a user to delete!");
+            JOptionPane.showMessageDialog(this, "❌ Please select a user to delete!");
             return;
         }
 
@@ -454,7 +461,7 @@ public class UserManagementPanel extends JPanel {
             loadUsers();
         } catch (Exception ex) {
             ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Error deleting user: " + ex.getMessage());
+            JOptionPane.showMessageDialog(this, "❌ Error deleting user: " + ex.getMessage());
         }
     }
 
@@ -462,7 +469,7 @@ public class UserManagementPanel extends JPanel {
     private void viewUserActivity() {
         int row = usersTable.getSelectedRow();
         if (row == -1) {
-            JOptionPane.showMessageDialog(this, "Please select a user!");
+            JOptionPane.showMessageDialog(this, "❌ Please select a user!");
             return;
         }
 
@@ -504,7 +511,7 @@ public class UserManagementPanel extends JPanel {
 
         } catch (Exception ex) {
             ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage());
+            JOptionPane.showMessageDialog(this, "❌ Error: " + ex.getMessage());
         }
     }
 

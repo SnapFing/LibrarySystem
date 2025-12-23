@@ -140,7 +140,7 @@ public class BorrowReturnPanel extends JPanel {
 
         bottomPanel.add(returnButton);
         bottomPanel.add(markOverdueButton);
-        //bottomPanel.add(viewFinesButton);
+        bottomPanel.add(viewFinesButton);
         bottomPanel.add(exportPDFButton);
         add(bottomPanel, BorderLayout.SOUTH);
 
@@ -453,7 +453,7 @@ public class BorrowReturnPanel extends JPanel {
         }
     }
 
-    // ===== Borrow Book =====
+    // ===== Borrow Book - FIXED FOREIGN KEY ISSUE =====
     private void handleBorrow() {
         String memberName = memberSearchField.getText().trim();
         String bookTitle = bookSearchField.getText().trim();
@@ -509,15 +509,43 @@ public class BorrowReturnPanel extends JPanel {
                 return;
             }
 
-            String sql = "INSERT INTO borrowed_books (member_id, book_id, borrow_date, due_date, status, issued_by) " +
-                    "VALUES (?, ?, ?, ?, 'BORROWED', ?)";
-            PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
-            stmt.setInt(1, selectedMemberId);
-            stmt.setInt(2, selectedBookId);
-            stmt.setDate(3, Date.valueOf(borrowDate));
-            stmt.setDate(4, Date.valueOf(dueDate));
-            int currentUserId = 1;
-            stmt.setInt(5, currentUserId);
+            // === FIX: Get valid user ID or insert without issued_by ===
+            Integer validUserId = null;
+            try {
+                PreparedStatement userStmt = conn.prepareStatement("SELECT id FROM users LIMIT 1");
+                ResultSet userRs = userStmt.executeQuery();
+                if (userRs.next()) {
+                    validUserId = userRs.getInt("id");
+                }
+            } catch (SQLException e) {
+                // issued_by column might not exist or users table doesn't exist
+                System.out.println("Note: Could not find valid user ID for issued_by column");
+            }
+
+            // Insert with or without issued_by depending on what's available
+            String sql;
+            PreparedStatement stmt;
+
+            if (validUserId != null) {
+                sql = "INSERT INTO borrowed_books (member_id, book_id, borrow_date, due_date, status, issued_by) " +
+                        "VALUES (?, ?, ?, ?, 'BORROWED', ?)";
+                stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+                stmt.setInt(1, selectedMemberId);
+                stmt.setInt(2, selectedBookId);
+                stmt.setDate(3, Date.valueOf(borrowDate));
+                stmt.setDate(4, Date.valueOf(dueDate));
+                stmt.setInt(5, validUserId);
+            } else {
+                // Try without issued_by column
+                sql = "INSERT INTO borrowed_books (member_id, book_id, borrow_date, due_date, status) " +
+                        "VALUES (?, ?, ?, ?, 'BORROWED')";
+                stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+                stmt.setInt(1, selectedMemberId);
+                stmt.setInt(2, selectedBookId);
+                stmt.setDate(3, Date.valueOf(borrowDate));
+                stmt.setDate(4, Date.valueOf(dueDate));
+            }
+
             stmt.executeUpdate();
 
             ResultSet generatedKeys = stmt.getGeneratedKeys();

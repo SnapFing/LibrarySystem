@@ -181,12 +181,12 @@ public class MembersPanel extends JPanel {
             return;
         }
 
-        if (!phone.matches("\\d{10}")) {
+        if (!phone.matches("^(\\+260|0)?[0-9]{9,10}$")) {   // Zambian format
             JOptionPane.showMessageDialog(this, "Phone number must be exactly 10 digits.");
             return;
         }
 
-        if (!email.matches("^[\\w.-]+@[\\w.-]+\\.\\w+$")) {
+        if (!email.matches("^[\\w._%+-]+@[\\w.-]+\\.[a-zA-Z]{2,}$")) {
             JOptionPane.showMessageDialog(this, "Invalid email format.");
             return;
         }

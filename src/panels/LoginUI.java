@@ -24,6 +24,13 @@ public class LoginUI extends JFrame {
         setLocationRelativeTo(null);
         setResizable(false);
 
+        // Add shutdown hook to close connection pool gracefully
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            public void windowClosing(java.awt.event.WindowAdapter e) {
+                DBHelper.closePool();
+            }
+        });
+
         // ===== Set Custom Icon =====
         try {
             ImageIcon icon = new ImageIcon(getClass().getResource("/panels/SNAPFING-LOGO.png"));
