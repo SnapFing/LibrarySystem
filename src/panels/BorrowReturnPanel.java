@@ -6,6 +6,7 @@ import com.itextpdf.text.Paragraph;
 import com.itextpdf.text.Phrase;
 import com.itextpdf.text.pdf.PdfPTable;
 import com.itextpdf.text.pdf.PdfWriter;
+import utils.TransactionManager;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -453,7 +454,7 @@ public class BorrowReturnPanel extends JPanel {
         }
     }
 
-    // ===== Borrow Book - FIXED FOREIGN KEY ISSUE =====
+    // ===== Borrow Book with Transaction Management =====
     private void handleBorrow() {
         String memberName = memberSearchField.getText().trim();
         String bookTitle = bookSearchField.getText().trim();
@@ -496,73 +497,86 @@ public class BorrowReturnPanel extends JPanel {
         String borrowDate = borrowDateField.getText();
         String dueDate = dueDateField.getText();
 
-        try (Connection conn = DBHelper.getConnection()) {
-            String checkSql = "SELECT available_quantity FROM books WHERE id=?";
+        // Execute borrow operation as a transaction
+        TransactionManager.TransactionResult<Integer> result = TransactionManager.executeSafe(conn -> {
+            // Step 1: Check if book is still available (within transaction)
+            String checkSql = "SELECT available_quantity FROM books WHERE id=? FOR UPDATE"; // Lock row
             PreparedStatement checkStmt = conn.prepareStatement(checkSql);
             checkStmt.setInt(1, selectedBookId);
             ResultSet rs = checkStmt.executeQuery();
 
             if (!rs.next() || rs.getInt("available_quantity") <= 0) {
-                JOptionPane.showMessageDialog(this, "❌ Book is no longer available!");
-                clearForm();
-                loadBorrowRecords();
-                return;
+                throw new SQLException("Book is no longer available");
             }
 
-            // === FIX: Get valid user ID or insert without issued_by ===
-            Integer validUserId = null;
-            try {
-                PreparedStatement userStmt = conn.prepareStatement("SELECT id FROM users LIMIT 1");
-                ResultSet userRs = userStmt.executeQuery();
-                if (userRs.next()) {
-                    validUserId = userRs.getInt("id");
-                }
-            } catch (SQLException e) {
-                // issued_by column might not exist or users table doesn't exist
-                System.out.println("Note: Could not find valid user ID for issued_by column");
+            // Step 2: Check member's borrowing limit
+            String limitSql = "SELECT COUNT(*) as borrowed FROM borrowed_books WHERE member_id=? AND status='BORROWED'";
+            PreparedStatement limitStmt = conn.prepareStatement(limitSql);
+            limitStmt.setInt(1, selectedMemberId);
+            ResultSet limitRs = limitStmt.executeQuery();
+            limitRs.next();
+            if (limitRs.getInt("borrowed") >= 5) {
+                throw new SQLException("Member has reached the borrowing limit (5 books)");
             }
 
-            // Insert with or without issued_by depending on what's available
-            String sql;
-            PreparedStatement stmt;
-
-            if (validUserId != null) {
-                sql = "INSERT INTO borrowed_books (member_id, book_id, borrow_date, due_date, status, issued_by) " +
-                        "VALUES (?, ?, ?, ?, 'BORROWED', ?)";
-                stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
-                stmt.setInt(1, selectedMemberId);
-                stmt.setInt(2, selectedBookId);
-                stmt.setDate(3, Date.valueOf(borrowDate));
-                stmt.setDate(4, Date.valueOf(dueDate));
-                stmt.setInt(5, validUserId);
-            } else {
-                // Try without issued_by column
-                sql = "INSERT INTO borrowed_books (member_id, book_id, borrow_date, due_date, status) " +
-                        "VALUES (?, ?, ?, ?, 'BORROWED')";
-                stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
-                stmt.setInt(1, selectedMemberId);
-                stmt.setInt(2, selectedBookId);
-                stmt.setDate(3, Date.valueOf(borrowDate));
-                stmt.setDate(4, Date.valueOf(dueDate));
+            // Step 3: Check for unpaid fines
+            String fineSql = "SELECT SUM(f.amount) as total_fines FROM fines f " +
+                    "JOIN borrowed_books bb ON f.borrow_id = bb.id " +
+                    "WHERE bb.member_id=? AND f.paid=FALSE";
+            PreparedStatement fineStmt = conn.prepareStatement(fineSql);
+            fineStmt.setInt(1, selectedMemberId);
+            ResultSet fineRs = fineStmt.executeQuery();
+            fineRs.next();
+            double unpaidFines = fineRs.getDouble("total_fines");
+            if (unpaidFines > 0) {
+                throw new SQLException("Member has unpaid fines: K" + String.format("%.2f", unpaidFines));
             }
 
-            stmt.executeUpdate();
+            // Step 4: Insert borrow record
+            String insertSql = "INSERT INTO borrowed_books (member_id, book_id, borrow_date, due_date, status, issued_by) " +
+                    "VALUES (?, ?, ?, ?, 'BORROWED', ?)";
+            PreparedStatement insertStmt = conn.prepareStatement(insertSql, Statement.RETURN_GENERATED_KEYS);
+            insertStmt.setInt(1, selectedMemberId);
+            insertStmt.setInt(2, selectedBookId);
+            insertStmt.setDate(3, Date.valueOf(borrowDate));
+            insertStmt.setDate(4, Date.valueOf(dueDate));
+            insertStmt.setInt(5, LibrarySystemUI.getCurrentUserId());
+            insertStmt.executeUpdate();
 
-            ResultSet generatedKeys = stmt.getGeneratedKeys();
-            int newBorrowId = -1;
+            // Get generated borrow ID
+            ResultSet generatedKeys = insertStmt.getGeneratedKeys();
+            int borrowId = -1;
             if (generatedKeys.next()) {
-                newBorrowId = generatedKeys.getInt(1);
+                borrowId = generatedKeys.getInt(1);
             }
 
+            // Step 5: Update book's available quantity
+            String updateBookSql = "UPDATE books SET available_quantity = available_quantity - 1 WHERE id=?";
+            PreparedStatement updateBookStmt = conn.prepareStatement(updateBookSql);
+            updateBookStmt.setInt(1, selectedBookId);
+            updateBookStmt.executeUpdate();
+
+            // Step 6: Log the transaction in audit
+            String auditSql = "INSERT INTO audit_logs (user_id, action, details) VALUES (?, 'BOOK_BORROWED', ?)";
+            PreparedStatement auditStmt = conn.prepareStatement(auditSql);
+            auditStmt.setInt(1, LibrarySystemUI.getCurrentUserId());
+            auditStmt.setString(2, "Borrowed book ID " + selectedBookId + " to member ID " + selectedMemberId);
+            auditStmt.executeUpdate();
+
+            return borrowId; // Return the new borrow ID
+        });
+
+        // Handle result
+        if (result.isSuccess()) {
             JOptionPane.showMessageDialog(this,
-                    "✅ Book borrowed successfully!\n\nBorrow ID: " + newBorrowId,
+                    "✅ Book borrowed successfully!\n\nBorrow ID: " + result.getData(),
                     "Success", JOptionPane.INFORMATION_MESSAGE);
             loadBorrowRecords();
             clearForm();
-
-        } catch (SQLException ex) {
-            ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Error borrowing book: " + ex.getMessage());
+        } else {
+            JOptionPane.showMessageDialog(this,
+                    "❌ Failed to borrow book:\n" + result.getErrorMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 

@@ -6,6 +6,7 @@ import com.itextpdf.text.pdf.PdfPCell;
 import com.itextpdf.text.pdf.PdfPTable;
 import com.itextpdf.text.pdf.PdfWriter;
 import db.DBHelper;
+import utils.ValidationUtils;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -168,7 +169,7 @@ public class MembersPanel extends JPanel {
         loadMembersFromDatabase();
     }
 
-    // ===== Add Member =====
+    // ===== Add Member with Comprehensive Validation =====
     private void handleAddMember(){
         String fname = fnameField.getText().trim();
         String lname = lnameField.getText().trim();
@@ -176,20 +177,51 @@ public class MembersPanel extends JPanel {
         String phone = phoneField.getText().trim();
         String address = addressField.getText().trim();
 
-        if(fname.isEmpty() || lname.isEmpty() || email.isEmpty() || phone.isEmpty()){
-            JOptionPane.showMessageDialog(this,"Please fill all required fields (First Name, Last Name, Email, Phone).");
+        // === VALIDATE ALL FIELDS ===
+
+        // Validate first name
+        ValidationUtils.ValidationResult fnameResult = ValidationUtils.validateName(fname, "First name");
+        if (!fnameResult.isValid()) {
+            showError(fnameResult.getErrorMessage());
+            fnameField.requestFocus();
             return;
         }
 
-        if (!phone.matches("^(\\+260|0)?[0-9]{9,10}$")) {   // Zambian format
-            JOptionPane.showMessageDialog(this, "Phone number must be exactly 10 digits.");
+        // Validate last name
+        ValidationUtils.ValidationResult lnameResult = ValidationUtils.validateName(lname, "Last name");
+        if (!lnameResult.isValid()) {
+            showError(lnameResult.getErrorMessage());
+            lnameField.requestFocus();
             return;
         }
 
-        if (!email.matches("^[\\w._%+-]+@[\\w.-]+\\.[a-zA-Z]{2,}$")) {
-            JOptionPane.showMessageDialog(this, "Invalid email format.");
+        // Validate email
+        ValidationUtils.ValidationResult emailResult = ValidationUtils.validateEmail(email);
+        if (!emailResult.isValid()) {
+            showError(emailResult.getErrorMessage());
+            emailField.requestFocus();
             return;
         }
+
+        // Validate phone
+        ValidationUtils.ValidationResult phoneResult = ValidationUtils.validatePhone(phone);
+        if (!phoneResult.isValid()) {
+            showError(phoneResult.getErrorMessage());
+            phoneField.requestFocus();
+            return;
+        }
+
+        // Validate address (optional but if provided, must be valid)
+        if (!address.isEmpty()) {
+            ValidationUtils.ValidationResult addressResult = ValidationUtils.validateAddress(address);
+            if (!addressResult.isValid()) {
+                showError(addressResult.getErrorMessage());
+                addressField.requestFocus();
+                return;
+            }
+        }
+
+        // === ALL VALIDATIONS PASSED - PROCEED WITH DATABASE INSERT ===
 
         try(Connection conn = DBHelper.getConnection()){
             // Check if email already exists
@@ -199,7 +231,8 @@ public class MembersPanel extends JPanel {
             ResultSet rs = checkStmt.executeQuery();
             rs.next();
             if(rs.getInt(1) > 0) {
-                JOptionPane.showMessageDialog(this, "❌ Email already exists!");
+                showError("Email already exists in the system!");
+                emailField.requestFocus();
                 return;
             }
 
@@ -212,13 +245,29 @@ public class MembersPanel extends JPanel {
             stmt.setString(5, address.isEmpty() ? null : address);
             stmt.executeUpdate();
 
-            JOptionPane.showMessageDialog(this,"✅ Member added successfully.");
+            showSuccess("Member added successfully!");
             clearForm();
             loadMembersFromDatabase();
+
         }catch(SQLException e){
             e.printStackTrace();
-            JOptionPane.showMessageDialog(this,"Error: "+e.getMessage());
+            showError("Database error: " + e.getMessage());
         }
+    }
+
+    // Helper methods for showing messages
+    private void showError(String message) {
+        JOptionPane.showMessageDialog(this,
+                message,
+                "Validation Error",
+                JOptionPane.ERROR_MESSAGE);
+    }
+
+    private void showSuccess(String message) {
+        JOptionPane.showMessageDialog(this,
+                "✅ " + message,
+                "Success",
+                JOptionPane.INFORMATION_MESSAGE);
     }
 
     // ===== Load Members =====

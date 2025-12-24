@@ -137,6 +137,9 @@ public class LibrarySystemUI extends JFrame {
         tabbedPane = new JTabbedPane();
         tabbedPane.setFont(new Font("Segoe UI", Font.PLAIN, 13));
 
+        // Dashboard - First tab for quick overview
+        tabbedPane.addTab("📊 Dashboard", null, new DashboardPanel(), "Library overview and statistics");
+
         // Core Tabs - Available to all users
         tabbedPane.addTab("👥 Members", null, new MembersPanel(), "Manage library members");
         tabbedPane.addTab("📚 Borrow / Return", null, new BorrowReturnPanel(), "Borrow and return books");
