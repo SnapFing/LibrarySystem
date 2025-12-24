@@ -145,7 +145,14 @@ public class LibrarySystemUI extends JFrame {
         tabbedPane.addTab("📚 Borrow / Return", null, new BorrowReturnPanel(), "Borrow and return books");
         tabbedPane.addTab("💰 Fines", null, new FinesPanel(), "Manage fines and payments");
 
-        // Admin Only Tabs
+        // Member Only Tabs
+        if ("Member".equalsIgnoreCase(userRole)) {
+            tabbedPane.addTab("📖 Books", null, new BooksPanel(), "Manage book inventory");
+            tabbedPane.addTab("📚 Borrow / Return", null, new BorrowReturnPanel(), "Borrow and return books");
+            tabbedPane.addTab("💰 Fines", null, new FinesPanel(), "Manage fines and payments");
+        }
+
+            // Admin Only Tabs
         if ("Admin".equalsIgnoreCase(userRole)) {
             tabbedPane.addTab("📖 Books", null, new BooksPanel(), "Manage book inventory");
             tabbedPane.addTab("👤 Users", null, new UserManagementPanel(), "Manage system users");
