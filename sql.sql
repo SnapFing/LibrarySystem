@@ -38,8 +38,19 @@ CREATE TABLE members (
     fname VARCHAR(50) NOT NULL,
     lname VARCHAR(50) NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
-    phone VARCHAR(15) NOT NULL,
+    phone VARCHAR(25) NOT NULL,
     address TEXT,
+    password VARCHAR(60), -- bcrypt hashed password for member login
+    profile_completed BOOLEAN DEFAULT FALSE,
+    profile_picture VARCHAR(255),
+    grade_or_year VARCHAR(100),
+    department VARCHAR(100),
+    student_id VARCHAR(50),
+    courses_or_subjects TEXT,
+    interests TEXT,
+    favorite_genres TEXT,
+    emergency_contact_name VARCHAR(100),
+    emergency_contact_phone VARCHAR(25),
     membership_date DATE DEFAULT (CURRENT_DATE),
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -342,3 +353,4 @@ UNION ALL
 SELECT 'Fines', COUNT(*) FROM fines
 UNION ALL
 SELECT 'Audit Logs', COUNT(*) FROM audit_logs;
+

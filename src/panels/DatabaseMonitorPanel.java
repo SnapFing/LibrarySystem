@@ -147,18 +147,39 @@ public class DatabaseMonitorPanel extends JPanel {
             statsTextArea.setText(detailedStats);
 
             // Update pool configuration labels
-            if (DBHelper.getDataSource() != null) {
-                maxPoolSizeLabel.setText(String.valueOf(DBHelper.getDataSource().getMaximumPoolSize()));
-                minIdleLabel.setText(String.valueOf(DBHelper.getDataSource().getMinimumIdle()));
-                threadsAwaitingLabel.setText(String.valueOf(
-                        DBHelper.getDataSource().getHikariPoolMXBean().getThreadsAwaitingConnection()));
+            Object ds = DBHelper.getDataSource();
+            if (ds != null) {
+                try {
+                    // Use reflection to avoid compile-time dependency on Hikari classes
+                    Class<?> cls = ds.getClass();
+                    java.lang.reflect.Method mMax = cls.getMethod("getMaximumPoolSize");
+                    java.lang.reflect.Method mMin = cls.getMethod("getMinimumIdle");
+                    Object maxVal = mMax.invoke(ds);
+                    Object minVal = mMin.invoke(ds);
+                    maxPoolSizeLabel.setText(String.valueOf(maxVal));
+                    minIdleLabel.setText(String.valueOf(minVal));
 
-                // Warning if threads are waiting
-                int waiting = DBHelper.getDataSource().getHikariPoolMXBean().getThreadsAwaitingConnection();
-                if (waiting > 0) {
-                    threadsAwaitingLabel.setForeground(Color.RED);
-                } else {
-                    threadsAwaitingLabel.setForeground(new Color(0, 150, 0));
+                    java.lang.reflect.Method mMxBean = cls.getMethod("getHikariPoolMXBean");
+                    Object mxBean = mMxBean.invoke(ds);
+                    if (mxBean != null) {
+                        Class<?> mxCls = mxBean.getClass();
+                        java.lang.reflect.Method mThreads = mxCls.getMethod("getThreadsAwaitingConnection");
+                        Object threads = mThreads.invoke(mxBean);
+                        threadsAwaitingLabel.setText(String.valueOf(threads));
+
+                        int waiting = Integer.parseInt(String.valueOf(threads));
+                        if (waiting > 0) {
+                            threadsAwaitingLabel.setForeground(Color.RED);
+                        } else {
+                            threadsAwaitingLabel.setForeground(new Color(0, 150, 0));
+                        }
+                    }
+
+                } catch (NoSuchMethodException nsme) {
+                    // Pool doesn't expose these methods - ignore
+                } catch (Exception ex) {
+                    // Any reflection error, log to detailed area
+                    statsTextArea.append("\n(Warning) Could not read pool internals: " + ex.getMessage());
                 }
             }
 
