@@ -11,6 +11,7 @@ import java.awt.*;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.sql.*;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -397,6 +398,14 @@ public class BooksPanel extends JPanel {
         String keyword = searchField.getText().trim().toLowerCase();
         String selectedCategory = (String) searchCategoryCombo.getSelectedItem();
 
+        // Whitelist validation
+        if (selectedCategory !=null &&
+            !selectedCategory.equals("--All Categories --") &&
+            !categoryMap.containsKey(selectedCategory)) {
+            JOptionPane.showMessageDialog(this, "Invalid category selected!");
+            return;
+
+        }
         if(keyword.isEmpty() && "-- All Categories --".equals(selectedCategory)) {
             loadBooksFromDatabase();
             return;

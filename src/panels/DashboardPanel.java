@@ -1,4 +1,3 @@
-// java
 package panels;
 
 import db.DBHelper;
@@ -341,10 +340,12 @@ public class DashboardPanel extends JPanel {
         worker.execute();
     }
 
+
     @Override
     public void removeNotify() {
-        if (refreshTimer != null) {
+        if (refreshTimer != null && refreshTimer.isRunning()) {
             refreshTimer.stop();
+            refreshTimer = null;
         }
         super.removeNotify();
     }

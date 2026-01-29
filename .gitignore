@@ -1,29 +1,116 @@
-### IntelliJ IDEA ###
+# ═══════════════════════════════════════════════════════════════
+# Library Management System - Git Ignore File
+# ═══════════════════════════════════════════════════════════════
+
+# ===== Database Configuration (SENSITIVE!) =====
+db.properties
+config/db.properties
+src/db.properties
+src/config/db.properties
+*.env
+.env
+.env.local
+.env.production
+
+# ===== IDE Files =====
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
 out/
-!**/src/main/**/out/
-!**/src/test/**/out/
 
-### Eclipse ###
-.apt_generated
+# Eclipse
 .classpath
-.factorypath
 .project
-.settings
-.springBeans
-.sts4-cache
+.settings/
 bin/
-!**/src/main/**/bin/
-!**/src/test/**/bin/
 
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-
-### VS Code ###
+# VS Code
 .vscode/
+*.code-workspace
 
-### Mac OS ###
+# NetBeans
+nbproject/private/
+build/
+nbbuild/
+dist/
+nbdist/
+
+# ===== Build Files =====
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# Maven
+.mvn/
+mvnw
+mvnw.cmd
+
+# Gradle
+.gradle/
+gradle/
+gradlew
+gradlew.bat
+
+# ===== OS Files =====
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# ===== Logs =====
+*.log
+logs/
+*.log.*
+
+# ===== Temporary Files =====
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# ===== Compiled Files =====
+*.com
+*.dll
+*.exe
+*.o
+*.so
+
+# ===== Package Files =====
+*.7z
+*.dmg
+*.gz
+*.iso
+*.rar
+*.tar
+*.zip
+
+# ===== Java specific =====
+hs_err_pid*
+replay_pid*
+
+# ===== Library Management System Specific =====
+# Exported reports
+exports/
+reports/*.pdf
+reports/*.csv
+
+# User data (if any)
+user-data/
+
+# Backup files
+*.bak
+*.backup

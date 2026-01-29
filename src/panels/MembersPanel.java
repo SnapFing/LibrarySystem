@@ -16,6 +16,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.sql.*;
+import java.util.Arrays;
 
 public class MembersPanel extends JPanel {
     private JTextField fnameField, lnameField, emailField, phoneField, addressField, searchField;
@@ -296,7 +297,17 @@ public class MembersPanel extends JPanel {
     private void handleSearch(){
         String keyword = searchField.getText().trim().toLowerCase();
         String column = searchByCombo.getSelectedItem().toString();
-        if(keyword.isEmpty()){ loadMembersFromDatabase(); return; }
+
+        // whitelist validation
+        if (!Arrays.asList("fname", "lname", "email", "phone").contains(column)) {
+            JOptionPane.showMessageDialog(this, "Invalid search column selected.");
+            return;
+        }
+
+        if(keyword.isEmpty()){
+            loadMembersFromDatabase();
+            return;
+        }
 
         try(Connection conn = DBHelper.getConnection()){
             String sql = "SELECT * FROM members WHERE LOWER("+column+") LIKE ? AND is_active=TRUE ORDER BY fname, lname";

@@ -230,10 +230,12 @@ public class DatabaseMonitorPanel extends JPanel {
     }
 
     // Stop timer when panel is removed
+
     @Override
     public void removeNotify() {
-        if (refreshTimer != null) {
+        if (refreshTimer != null && refreshTimer.isRunning()) {
             refreshTimer.stop();
+            refreshTimer = null;
         }
         super.removeNotify();
     }

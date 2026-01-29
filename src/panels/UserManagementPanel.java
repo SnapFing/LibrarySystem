@@ -179,6 +179,8 @@ public class UserManagementPanel extends JPanel {
         }
     }
 
+
+
     // ===== Search Users =====
     private void searchUsers() {
         String keyword = searchField.getText().trim();
@@ -220,6 +222,15 @@ public class UserManagementPanel extends JPanel {
         String username = usernameField.getText().trim();
         String password = new String(passwordField.getPassword()).trim();
         String role = (String) roleCombo.getSelectedItem();
+
+        // Vaidate password strength
+        String strengthError = PasswordUtil.validatePasswordStrength(password);
+        if (strengthError != null) {
+            JOptionPane.showMessageDialog(this,"❌ " + strengthError,
+                    "Weak Password",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
 
         if (username.isEmpty() || password.isEmpty()) {
             JOptionPane.showMessageDialog(this, "❌ Please enter username and password!");

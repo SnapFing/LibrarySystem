@@ -4,6 +4,7 @@ import com.formdev.flatlaf.*;
 import com.formdev.flatlaf.intellijthemes.*;
 import com.formdev.flatlaf.intellijthemes.materialthemeuilite.*;
 import db.DBHelper;
+import utils.FineCalculator;
 
 import javax.swing.*;
 import java.awt.*;
@@ -22,6 +23,9 @@ public class LibrarySystemUI extends JFrame {
     private JLabel dateTimeLabel;
     private static int currentUserId;
     private static String currentUsername;
+    private Timer fineCalculationTimer; // Declare as instance variable
+
+
 
     /* ================= THEME REGISTRY ================= */
     private static final Map<String, LookAndFeel> THEMES = new LinkedHashMap<>();
@@ -63,7 +67,10 @@ public class LibrarySystemUI extends JFrame {
 
         startClock();
         loadUserSession();
+        setupShutdownHook();
+        startFineCalculationTimer(); // Initialize and start the timer
         setVisible(true);
+
     }
 
     /* ================= TOP BAR ================= */
@@ -152,7 +159,7 @@ public class LibrarySystemUI extends JFrame {
             tabbedPane.addTab("💰 Fines", null, new FinesPanel(), "Manage fines and payments");
         }
 
-            // Admin Only Tabs
+        // Admin Only Tabs
         if ("Admin".equalsIgnoreCase(userRole)) {
             tabbedPane.addTab("📖 Books", null, new BooksPanel(), "Manage book inventory");
             tabbedPane.addTab("👤 Users", null, new UserManagementPanel(), "Manage system users");
@@ -182,6 +189,40 @@ public class LibrarySystemUI extends JFrame {
         return statusBar;
     }
 
+    /* ================= DAILY FINE CALCULATION ================= */
+    private void startFineCalculationTimer() {
+        // Create timer that runs every 24 hours (86400000 ms)
+        fineCalculationTimer = new Timer(24 * 60 * 60 * 1000, e -> {
+            // Run fine calculation in background thread
+            SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
+                @Override
+                protected Void doInBackground() {
+                    FineCalculator.calculateOverdueFines();
+                    return null;
+                }
+
+                @Override
+                protected void done() {
+                    System.out.println("Daily fine calculation completed at: " + new Date());
+                }
+            };
+            worker.execute();
+        });
+
+        // Start the timer
+        fineCalculationTimer.start();
+
+        // Optionally run it immediately on startup
+        SwingWorker<Void, Void> initialWorker = new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() {
+                FineCalculator.calculateOverdueFines();
+                return null;
+            }
+        };
+        initialWorker.execute();
+    }
+
     /* ================= HELPERS ================= */
     private void switchTheme(String themeName) {
         try {
@@ -209,6 +250,12 @@ public class LibrarySystemUI extends JFrame {
         if (confirm == JOptionPane.YES_OPTION) {
             logActivity("LOGOUT", "User logged out");
             updateLastLogin();
+
+            // Stop the timer when logging out
+            if (fineCalculationTimer != null) {
+                fineCalculationTimer.stop();
+            }
+
             dispose();
             SwingUtilities.invokeLater(() -> new LoginUI().setVisible(true));
         }
@@ -295,6 +342,19 @@ public class LibrarySystemUI extends JFrame {
             g2.dispose();
             super.paintComponent(g);
         }
+    }
+
+    // Cleanup on application Exit
+    private void setupShutdownHook() {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            // Stop the fine calculation timer
+            if (fineCalculationTimer != null) {
+                fineCalculationTimer.stop();
+            }
+
+            DBHelper.closePool();
+            System.out.println("Application shutdown: Database connection pool closed.");
+        }));
     }
 
     /* ================= MAIN ================= */
