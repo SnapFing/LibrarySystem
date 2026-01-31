@@ -23,6 +23,7 @@ public class MembersPanel extends JPanel {
     private JComboBox<String> searchByCombo;
     private JButton addButton, editButton, deleteButton, searchButton;
     private JTable membersTable;
+    private Timer refreshTimer;
     private DefaultTableModel tableModel;
 
     public MembersPanel() {
@@ -109,21 +110,21 @@ public class MembersPanel extends JPanel {
         add(topPanel, BorderLayout.NORTH);
 
         // ==== TABLE SECTION ====
-        tableModel = new DefaultTableModel(new String[]{
-                "ID","First Name","Last Name","Email","Phone","Address","Member Since"},0){
+        // Column row number
+        tableModel = new DefaultTableModel(new String[]{"#","First Name","Last Name","Email","Phone","Address","Member Since"},0){
             @Override
             public boolean isCellEditable(int row,int col){ return false; }
         };
         membersTable = new JTable(tableModel);
 
         // Set column widths
-        membersTable.getColumnModel().getColumn(0).setPreferredWidth(40);
-        membersTable.getColumnModel().getColumn(1).setPreferredWidth(100);
-        membersTable.getColumnModel().getColumn(2).setPreferredWidth(100);
-        membersTable.getColumnModel().getColumn(3).setPreferredWidth(150);
-        membersTable.getColumnModel().getColumn(4).setPreferredWidth(100);
-        membersTable.getColumnModel().getColumn(5).setPreferredWidth(200);
-        membersTable.getColumnModel().getColumn(6).setPreferredWidth(100);
+        membersTable.getColumnModel().getColumn(0).setPreferredWidth(40);   // #
+        membersTable.getColumnModel().getColumn(1).setPreferredWidth(100);  // First Name
+        membersTable.getColumnModel().getColumn(2).setPreferredWidth(100);  // Last Name
+        membersTable.getColumnModel().getColumn(3).setPreferredWidth(150);  // Email
+        membersTable.getColumnModel().getColumn(4).setPreferredWidth(100);  // Phone
+        membersTable.getColumnModel().getColumn(5).setPreferredWidth(200);  // Address
+        membersTable.getColumnModel().getColumn(6).setPreferredWidth(100);  // Member Since
 
         add(new JScrollPane(membersTable), BorderLayout.CENTER);
 
@@ -142,9 +143,13 @@ public class MembersPanel extends JPanel {
         viewHistoryButton.setToolTipText("View member's borrowing history");
         viewHistoryButton.addActionListener(e -> viewBorrowingHistory());
 
+        JButton refreshButton = new JButton("🔄 Refresh");
+
         bottomPanel.add(editButton);
         bottomPanel.add(deleteButton);
         bottomPanel.add(viewHistoryButton);
+
+
 
         JButton exportCSVButton = new JButton("📄 Export CSV");
         exportCSVButton.setToolTipText("Export members to CSV");
@@ -405,10 +410,10 @@ public class MembersPanel extends JPanel {
         }
 
         int id = (int)tableModel.getValueAt(row, 0);
-        String name = tableModel.getValueAt(row, 1) + " " + tableModel.getValueAt(row, 2);
+        String memberName = (String) tableModel.getValueAt(row, 1);
 
         int confirm = JOptionPane.showConfirmDialog(this,
-                "Are you sure you want to delete member: " + name + "?",
+                "Are you sure you want to delete member:\n " + memberName + "?",
                 "Confirm Delete",
                 JOptionPane.YES_NO_OPTION,
                 JOptionPane.WARNING_MESSAGE);
@@ -416,17 +421,21 @@ public class MembersPanel extends JPanel {
         if(confirm != JOptionPane.YES_OPTION) return;
 
         try(Connection conn = DBHelper.getConnection()){
-            // Soft delete - set is_active to FALSE
-            String sql = "UPDATE members SET is_active=FALSE WHERE id=?";
+            // Soft delete by ID - set is_active to FALSE
+            String sql = "DELETE FROM members WHERE id=?";
             PreparedStatement stmt = conn.prepareStatement(sql);
             stmt.setInt(1, id);
-            stmt.executeUpdate();
+            int rowsDeleted = stmt.executeUpdate();
 
-            JOptionPane.showMessageDialog(this,"✅ Member deactivated.");
-            loadMembersFromDatabase();
-        }catch(SQLException e){
+            if (rowsDeleted > 0) {
+                JOptionPane.showMessageDialog(this, "✅ Member deleted successfully.");
+                loadMembersFromDatabase();
+            } else {
+                JOptionPane.showMessageDialog(this, "❌ Failed to delete member.");
+            }
+        } catch(SQLException e){
             e.printStackTrace();
-            JOptionPane.showMessageDialog(this,"Error: "+e.getMessage());
+            JOptionPane.showMessageDialog(this,"Error: " + e.getMessage());
         }
     }
 

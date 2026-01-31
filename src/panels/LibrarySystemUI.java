@@ -3,31 +3,30 @@ package panels;
 import com.formdev.flatlaf.*;
 import com.formdev.flatlaf.intellijthemes.*;
 import com.formdev.flatlaf.intellijthemes.materialthemeuilite.*;
+import panels.students.MyBorrowedBooksPanel;
+import panels.students.StudentBooksPanel;
+import panels.students.StudentProfilePanel;
 import db.DBHelper;
-import utils.FineCalculator;
 
 import javax.swing.*;
 import java.awt.*;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
+import java.sql.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class LibrarySystemUI extends JFrame {
-
     private JTabbedPane tabbedPane;
     private final String userRole;
+    private final String username;
     private JLabel dateTimeLabel;
-    private static int currentUserId;
-    private static String currentUsername;
-    private Timer fineCalculationTimer; // Declare as instance variable
 
+    // Static fields for tracking current logged-in user
+    private static Integer currentUserId = null;
+    private static String currentUsername = null;
+    private static String currentUserRole = null;
 
-
-    /* ================= THEME REGISTRY ================= */
     private static final Map<String, LookAndFeel> THEMES = new LinkedHashMap<>();
     static {
         THEMES.put("Flat Light", new FlatLightLaf());
@@ -36,333 +35,248 @@ public class LibrarySystemUI extends JFrame {
         THEMES.put("Flat Darcula", new FlatDarculaLaf());
         THEMES.put("Arc Orange", new FlatArcOrangeIJTheme());
         THEMES.put("Carbon", new FlatCarbonIJTheme());
+        THEMES.put("Cobalt 2", new FlatCobalt2IJTheme());
         THEMES.put("Dracula", new FlatDraculaIJTheme());
+        THEMES.put("Gradianto Deep Ocean", new FlatGradiantoDeepOceanIJTheme());
+        THEMES.put("Gradianto Midnight Blue", new FlatGradiantoMidnightBlueIJTheme());
+        THEMES.put("Gradianto Nature Green", new FlatGradiantoNatureGreenIJTheme());
+        THEMES.put("High Contrast", new FlatHighContrastIJTheme());
         THEMES.put("Monokai Pro", new FlatMonokaiProIJTheme());
         THEMES.put("One Dark", new FlatOneDarkIJTheme());
         THEMES.put("Solarized Dark", new FlatSolarizedDarkIJTheme());
         THEMES.put("Solarized Light", new FlatSolarizedLightIJTheme());
     }
 
-    /* ================= CONSTRUCTOR ================= */
     public LibrarySystemUI(String role) {
-        this.userRole = role;
+        this(role, "User");
+    }
 
-        setTitle("📚 Library Management System — Logged in as " + role);
-        setSize(1200, 750);
-        setMinimumSize(new Dimension(1000, 650));
+    public LibrarySystemUI(String role, String username) {
+        this.userRole = role;
+        this.username = username;
+
+        // Set static user tracking info
+        currentUsername = username;
+        currentUserRole = role;
+        loadCurrentUserId();
+
+        setTitle("Library Management - " + username + " (" + role + ")");
+        setSize(1000, 650);
         setLocationRelativeTo(null);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        // App Icon
+        // ===== Set Custom Icon =====
         try {
-            setIconImage(new ImageIcon(
-                    getClass().getResource("/panels/SNAPFING-LOGO.png")).getImage());
-        } catch (Exception ignored) {}
+            ImageIcon icon = new ImageIcon(getClass().getResource("/panels/SNAPFING-LOGO.png"));
+            setIconImage(icon.getImage());
+        } catch (Exception e) {
+            // Icon not found
+        }
 
-        setLayout(new BorderLayout());
-
-        add(createTopBar(), BorderLayout.NORTH);
-        add(createTabs(), BorderLayout.CENTER);
-        add(createStatusBar(), BorderLayout.SOUTH);
-
-        startClock();
-        loadUserSession();
-        setupShutdownHook();
-        startFineCalculationTimer(); // Initialize and start the timer
-        setVisible(true);
-
-    }
-
-    /* ================= TOP BAR ================= */
-    private JPanel createTopBar() {
-        RoundedPanel topBar = new RoundedPanel(10);
+        // ===== Top Bar =====
+        RoundedPanel topBar = new RoundedPanel(80);
         topBar.setLayout(new BorderLayout());
-        topBar.setBorder(BorderFactory.createEmptyBorder(12, 20, 12, 20));
-        topBar.setBackground(new Color(30, 30, 30));
+        topBar.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
 
-        /* LEFT — LOGO + WELCOME */
-        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 0));
-        left.setOpaque(false);
-
+        // LEFT: Logo + Welcome
+        JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        leftPanel.setOpaque(false);
         JLabel logo = new JLabel();
         try {
             ImageIcon raw = new ImageIcon(getClass().getResource("/panels/SNAPFING-LOGO.png"));
-            Image scaled = raw.getImage().getScaledInstance(50, 50, Image.SCALE_SMOOTH);
+            Image scaled = raw.getImage().getScaledInstance(40, 40, Image.SCALE_SMOOTH);
             logo.setIcon(new ImageIcon(scaled));
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) { }
 
-        JLabel welcome = new JLabel("Welcome, " + userRole);
-        welcome.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        welcome.setForeground(Color.WHITE);
+        JLabel welcomeLabel = new JLabel("Welcome, " + username + " (" + role + ")");
+        welcomeLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        welcomeLabel.setForeground(Color.WHITE);
 
-        left.add(logo);
-        left.add(welcome);
+        leftPanel.add(logo);
+        leftPanel.add(welcomeLabel);
+        topBar.add(leftPanel, BorderLayout.WEST);
 
-        /* RIGHT — THEME, LOGOUT, TIME */
-        JPanel right = new JPanel();
-        right.setLayout(new BoxLayout(right, BoxLayout.Y_AXIS));
-        right.setOpaque(false);
+        // RIGHT: Theme + Logout + DateTime
+        JPanel rightPanel = new JPanel();
+        rightPanel.setLayout(new BoxLayout(rightPanel, BoxLayout.Y_AXIS));
+        rightPanel.setOpaque(false);
 
-        JPanel row1 = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        // Row 1: Theme + Logout
+        JPanel row1 = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         row1.setOpaque(false);
-
-        JLabel themeLabel = new JLabel("🎨");
-        themeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 16));
-
-        JComboBox<String> themeBox = new JComboBox<>(THEMES.keySet().toArray(new String[0]));
-        themeBox.setSelectedItem("Flat Darcula");
-        themeBox.setToolTipText("Select theme");
-        themeBox.addActionListener(e -> switchTheme((String) themeBox.getSelectedItem()));
-
-        JButton logoutBtn = new JButton("🚪 Logout");
-        logoutBtn.setToolTipText("Logout and return to login screen");
-        logoutBtn.addActionListener(e -> logout());
-
-        row1.add(themeLabel);
-        row1.add(themeBox);
-        row1.add(logoutBtn);
-
-        JPanel row2 = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        row2.setOpaque(false);
-        dateTimeLabel = new JLabel();
-        dateTimeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        dateTimeLabel.setForeground(new Color(200, 200, 200));
-        row2.add(dateTimeLabel);
-
-        right.add(row1);
-        right.add(Box.createVerticalStrut(8));
-        right.add(row2);
-
-        topBar.add(left, BorderLayout.WEST);
-        topBar.add(right, BorderLayout.EAST);
-
-        return topBar;
-    }
-
-    /* ================= TABS ================= */
-    private JTabbedPane createTabs() {
-        tabbedPane = new JTabbedPane();
-        tabbedPane.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-
-        // Dashboard - First tab for quick overview
-        tabbedPane.addTab("📊 Dashboard", null, new DashboardPanel(), "Library overview and statistics");
-
-        // Core Tabs - Available to all users
-        tabbedPane.addTab("👥 Members", null, new MembersPanel(), "Manage library members");
-        tabbedPane.addTab("📚 Borrow / Return", null, new BorrowReturnPanel(), "Borrow and return books");
-        tabbedPane.addTab("💰 Fines", null, new FinesPanel(), "Manage fines and payments");
-
-        // Member Only Tabs
-        if ("Member".equalsIgnoreCase(userRole)) {
-            tabbedPane.addTab("📖 Books", null, new BooksPanel(), "Manage book inventory");
-            tabbedPane.addTab("📚 Borrow / Return", null, new BorrowReturnPanel(), "Borrow and return books");
-            tabbedPane.addTab("💰 Fines", null, new FinesPanel(), "Manage fines and payments");
-        }
-
-        // Admin Only Tabs
-        if ("Admin".equalsIgnoreCase(userRole)) {
-            tabbedPane.addTab("📖 Books", null, new BooksPanel(), "Manage book inventory");
-            tabbedPane.addTab("👤 Users", null, new UserManagementPanel(), "Manage system users");
-            tabbedPane.addTab("📊 DB Monitor", null, new DatabaseMonitorPanel(), "Monitor database connection pool");
-        }
-
-        return tabbedPane;
-    }
-
-    /* ================= STATUS BAR ================= */
-    private JPanel createStatusBar() {
-        JPanel statusBar = new JPanel(new BorderLayout());
-        statusBar.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-        statusBar.setBackground(new Color(40, 40, 40));
-
-        JLabel statusLabel = new JLabel("Ready");
-        statusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-        statusLabel.setForeground(new Color(180, 180, 180));
-
-        JLabel versionLabel = new JLabel("Version 2.0");
-        versionLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-        versionLabel.setForeground(new Color(150, 150, 150));
-
-        statusBar.add(statusLabel, BorderLayout.WEST);
-        statusBar.add(versionLabel, BorderLayout.EAST);
-
-        return statusBar;
-    }
-
-    /* ================= DAILY FINE CALCULATION ================= */
-    private void startFineCalculationTimer() {
-        // Create timer that runs every 24 hours (86400000 ms)
-        fineCalculationTimer = new Timer(24 * 60 * 60 * 1000, e -> {
-            // Run fine calculation in background thread
-            SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
-                @Override
-                protected Void doInBackground() {
-                    FineCalculator.calculateOverdueFines();
-                    return null;
-                }
-
-                @Override
-                protected void done() {
-                    System.out.println("Daily fine calculation completed at: " + new Date());
-                }
-            };
-            worker.execute();
-        });
-
-        // Start the timer
-        fineCalculationTimer.start();
-
-        // Optionally run it immediately on startup
-        SwingWorker<Void, Void> initialWorker = new SwingWorker<Void, Void>() {
-            @Override
-            protected Void doInBackground() {
-                FineCalculator.calculateOverdueFines();
-                return null;
-            }
-        };
-        initialWorker.execute();
-    }
-
-    /* ================= HELPERS ================= */
-    private void switchTheme(String themeName) {
-        try {
-            UIManager.setLookAndFeel(THEMES.get(themeName));
-            SwingUtilities.updateComponentTreeUI(this);
-
-            // Log theme change
-            logActivity("THEME_CHANGED", "Changed theme to: " + themeName);
-        } catch (Exception ex) {
-            ex.printStackTrace();
-            JOptionPane.showMessageDialog(this,
-                    "Failed to apply theme: " + themeName,
-                    "Theme Error",
-                    JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    private void logout() {
-        int confirm = JOptionPane.showConfirmDialog(this,
-                "Are you sure you want to logout?",
-                "Confirm Logout",
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.QUESTION_MESSAGE);
-
-        if (confirm == JOptionPane.YES_OPTION) {
-            logActivity("LOGOUT", "User logged out");
-            updateLastLogin();
-
-            // Stop the timer when logging out
-            if (fineCalculationTimer != null) {
-                fineCalculationTimer.stop();
-            }
+        JComboBox<String> themeSelector = new JComboBox<>(THEMES.keySet().toArray(new String[0]));
+        themeSelector.setSelectedItem("Flat Darcula");
+        themeSelector.addActionListener(e -> switchTheme((String) themeSelector.getSelectedItem()));
+        JButton logoutBtn = new JButton("Logout");
+        logoutBtn.addActionListener(e -> {
+            // Clear user tracking on logout
+            currentUserId = null;
+            currentUsername = null;
+            currentUserRole = null;
 
             dispose();
             SwingUtilities.invokeLater(() -> new LoginUI().setVisible(true));
+        });
+
+        row1.add(new JLabel("🎨 Theme:"));
+        row1.add(themeSelector);
+        row1.add(logoutBtn);
+
+        // Row 2: Date/Time
+        JPanel row2 = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        row2.setOpaque(false);
+        dateTimeLabel = new JLabel();
+        dateTimeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        dateTimeLabel.setForeground(Color.WHITE);
+        row2.add(dateTimeLabel);
+
+        rightPanel.add(row1);
+        rightPanel.add(Box.createVerticalStrut(8));
+        rightPanel.add(row2);
+
+        topBar.add(rightPanel, BorderLayout.EAST);
+
+        add(topBar, BorderLayout.NORTH);
+
+        // ===== Tabs Based on Role =====
+        tabbedPane = new JTabbedPane();
+
+        // All roles can view members (read-only for students)
+        if ("Student".equalsIgnoreCase(userRole)) {
+            // Student view - limited access
+            tabbedPane.addTab("📚 Browse Books", new StudentBooksPanel());
+            tabbedPane.addTab("📖 My Borrowed Books", new MyBorrowedBooksPanel(username));
+            tabbedPane.addTab("👤 My Profile", new StudentProfilePanel(username));
+
+        } else if ("Librarian".equalsIgnoreCase(userRole)) {
+            // Librarian view - can manage borrowing/returning
+            tabbedPane.addTab("👥 Members", new MembersPanel());
+            tabbedPane.addTab("📚 Books", new BooksPanel());
+            tabbedPane.addTab("🔄 Borrow/Return", new BorrowReturnPanel());
+            tabbedPane.addTab("📊 Reports", new ReportsPanel());
+
+        } else if ("Admin".equalsIgnoreCase(userRole)) {
+            // Admin view - full access
+            tabbedPane.addTab("Dashboard", new DashboardPanel());
+            tabbedPane.addTab("👥 Members", new MembersPanel());
+            tabbedPane.addTab("📚 Books", new BooksPanel());
+            tabbedPane.addTab("🔄 Borrow/Return", new BorrowReturnPanel());
+            tabbedPane.addTab("👨‍💼 User Management", new UserManagementPanel());
+            tabbedPane.addTab("Fines", new FinesPanel());
+            tabbedPane.addTab("📊 Reports", new ReportsPanel());
+            tabbedPane.addTab("⚙️ System Settings", new SystemSettingsPanel());
+            tabbedPane.addTab("Database Monitor", new DatabaseMonitorPanel());
         }
+
+        add(tabbedPane, BorderLayout.CENTER);
+
+        // Start clock
+        startClock();
+
+        setVisible(true);
     }
 
-    private void startClock() {
-        SimpleDateFormat sdf = new SimpleDateFormat("EEE, dd MMM yyyy | HH:mm:ss");
-        Timer timer = new Timer(1000, e -> dateTimeLabel.setText(sdf.format(new Date())));
-        timer.start();
-    }
+    // ===== User Tracking Methods =====
 
-    private void loadUserSession() {
+    /**
+     * Load the current user's ID from the database
+     */
+    private void loadCurrentUserId() {
         try (Connection conn = DBHelper.getConnection()) {
-            String sql = "SELECT id, username FROM users WHERE username = ?";
+            // Try to find user in users table (Admin/Librarian)
+            String sql = "SELECT id FROM users WHERE username=?";
             PreparedStatement stmt = conn.prepareStatement(sql);
-            stmt.setString(1, userRole.toLowerCase());
+            stmt.setString(1, username);
             ResultSet rs = stmt.executeQuery();
 
             if (rs.next()) {
                 currentUserId = rs.getInt("id");
-                currentUsername = rs.getString("username");
+                System.out.println("Loaded user ID: " + currentUserId + " for " + username);
+            } else {
+                // If not in users table, try members table (Student)
+                sql = "SELECT id FROM members WHERE name=?";
+                stmt = conn.prepareStatement(sql);
+                stmt.setString(1, username);
+                rs = stmt.executeQuery();
 
-                // Update last_login
-                updateLastLogin();
-
-                // Log login
-                logActivity("LOGIN", "User logged in successfully");
+                if (rs.next()) {
+                    currentUserId = rs.getInt("id");
+                    System.out.println("Loaded member ID: " + currentUserId + " for " + username);
+                } else {
+                    System.err.println("Warning: Could not find user ID for " + username);
+                    currentUserId = -1; // Default fallback
+                }
             }
         } catch (Exception ex) {
-            ex.printStackTrace();
+            System.err.println("Error loading user ID: " + ex.getMessage());
+            currentUserId = -1; // Default fallback
         }
     }
 
-    private void updateLastLogin() {
-        try (Connection conn = DBHelper.getConnection()) {
-            String sql = "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?";
-            PreparedStatement stmt = conn.prepareStatement(sql);
-            stmt.setInt(1, currentUserId);
-            stmt.executeUpdate();
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-    }
-
-    private void logActivity(String action, String details) {
-        try (Connection conn = DBHelper.getConnection()) {
-            String sql = "INSERT INTO audit_logs (user_id, action, details) VALUES (?, ?, ?)";
-            PreparedStatement stmt = conn.prepareStatement(sql);
-            stmt.setInt(1, currentUserId);
-            stmt.setString(2, action);
-            stmt.setString(3, details);
-            stmt.executeUpdate();
-        } catch (Exception ex) {
-            // Silently fail - logging shouldn't interrupt main operations
-            ex.printStackTrace();
-        }
-    }
-
-    /* ================= STATIC ACCESSORS ================= */
+    /**
+     * Get the current logged-in user's ID
+     * @return User ID or -1 if not available
+     */
     public static int getCurrentUserId() {
-        return currentUserId;
+        return (currentUserId != null) ? currentUserId : -1;
     }
 
+    /**
+     * Get the current logged-in username
+     * @return Username or null if not logged in
+     */
     public static String getCurrentUsername() {
         return currentUsername;
     }
 
-    /* ================= ROUNDED PANEL ================= */
-    static class RoundedPanel extends JPanel {
-        private final int radius;
+    /**
+     * Get the current logged-in user's role
+     * @return Role (Admin, Librarian, Student) or null if not logged in
+     */
+    public static String getCurrentUserRole() {
+        return currentUserRole;
+    }
 
-        RoundedPanel(int r) {
-            radius = r;
+    private void switchTheme(String themeName) {
+        try {
+            UIManager.setLookAndFeel(THEMES.get(themeName));
+            SwingUtilities.updateComponentTreeUI(this);
+        } catch (Exception ex) { ex.printStackTrace(); }
+    }
+
+    private void startClock() {
+        Timer timer = new Timer(1000, e -> {
+            SimpleDateFormat sdf = new SimpleDateFormat("EEE, dd MMM yyyy | HH:mm:ss");
+            dateTimeLabel.setText(sdf.format(new Date()));
+        });
+        timer.start();
+    }
+
+    // ===== Rounded Panel =====
+    static class RoundedPanel extends JPanel {
+        private final int cornerRadius;
+        public RoundedPanel(int radius) {
+            super();
+            this.cornerRadius = radius;
             setOpaque(false);
         }
-
         @Override
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                    RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setColor(getBackground());
-            g2.fillRoundRect(0, 0, getWidth(), getHeight(), radius, radius);
+            g2.fillRoundRect(0, 0, getWidth(), getHeight(), cornerRadius, cornerRadius);
             g2.dispose();
             super.paintComponent(g);
         }
     }
 
-    // Cleanup on application Exit
-    private void setupShutdownHook() {
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            // Stop the fine calculation timer
-            if (fineCalculationTimer != null) {
-                fineCalculationTimer.stop();
-            }
-
-            DBHelper.closePool();
-            System.out.println("Application shutdown: Database connection pool closed.");
-        }));
-    }
-
-    /* ================= MAIN ================= */
     public static void main(String[] args) {
         try {
             UIManager.setLookAndFeel(new FlatDarculaLaf());
-        } catch (Exception ignored) {}
-
-        SwingUtilities.invokeLater(() -> new LibrarySystemUI("Admin"));
+        } catch (Exception ex) {
+            System.err.println("Failed to initialize LookAndFeel");
+        }
+        SwingUtilities.invokeLater(() -> new LibrarySystemUI("Admin", "Administrator"));
     }
 }

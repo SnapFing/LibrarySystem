@@ -147,7 +147,7 @@ public class BooksPanel extends JPanel {
 
         // ==== TABLE ====
         tableModel = new DefaultTableModel(new String[]{
-                "ID","Title","Author","ISBN","Category","Publisher","Year","Total","Available","Shelf"},0){
+                "#","Title","Author","ISBN","Category","Publisher","Year","Total","Available","Shelf"},0){
             @Override
             public boolean isCellEditable(int row, int col){ return false; }
         };

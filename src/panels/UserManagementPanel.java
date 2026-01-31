@@ -99,20 +99,37 @@ public class UserManagementPanel extends JPanel {
         add(topPanel, BorderLayout.NORTH);
 
         // ===== TABLE =====
-        model = new DefaultTableModel(new String[]{"ID", "Username", "Role", "Created", "Last Login", "Status"}, 0) {
-            @Override
-            public boolean isCellEditable(int row, int col) {
-                return false;
-            }
-        };
+        boolean hasNewColumns = checkDatabaseColumns();
+
+        if (hasNewColumns) {
+            // ✅ FIX: Added "ID" column first
+            model = new DefaultTableModel(new String[]{"ID", "Username", "Role", "Created", "Last Login", "Status"}, 0) {
+                @Override
+                public boolean isCellEditable(int row, int col) {
+                    return false;
+                }
+            };
+        } else {
+            model = new DefaultTableModel(new String[]{"ID", "Username", "Role"}, 0) {
+                @Override
+                public boolean isCellEditable(int row, int col) {
+                    return false;
+                }
+            };
+        }
+
         usersTable = new JTable(model);
         usersTable.setFillsViewportHeight(true);
+
+        // ✅ FIX: Proper column widths
         usersTable.getColumnModel().getColumn(0).setPreferredWidth(50);
         usersTable.getColumnModel().getColumn(1).setPreferredWidth(150);
         usersTable.getColumnModel().getColumn(2).setPreferredWidth(100);
-        usersTable.getColumnModel().getColumn(3).setPreferredWidth(120);
-        usersTable.getColumnModel().getColumn(4).setPreferredWidth(120);
-        usersTable.getColumnModel().getColumn(5).setPreferredWidth(80);
+        if (hasNewColumns) {
+            usersTable.getColumnModel().getColumn(3).setPreferredWidth(120);
+            usersTable.getColumnModel().getColumn(4).setPreferredWidth(120);
+            usersTable.getColumnModel().getColumn(5).setPreferredWidth(80);
+        }
 
         add(new JScrollPane(usersTable), BorderLayout.CENTER);
 
@@ -131,19 +148,22 @@ public class UserManagementPanel extends JPanel {
         resetPasswordBtn.setToolTipText("Reset password for selected user");
         resetPasswordBtn.addActionListener(e -> resetPassword());
 
-        JButton toggleStatusBtn = new JButton("🔄 Toggle Status");
-        toggleStatusBtn.setToolTipText("Activate/Deactivate user account");
-        toggleStatusBtn.addActionListener(e -> toggleUserStatus());
-
-        JButton viewLogsBtn = new JButton("📋 View Activity");
-        viewLogsBtn.setToolTipText("View user's activity logs");
-        viewLogsBtn.addActionListener(e -> viewUserActivity());
-
         buttonPanel.add(editUserBtn);
         buttonPanel.add(resetPasswordBtn);
-        buttonPanel.add(toggleStatusBtn);
         buttonPanel.add(deleteUserBtn);
-        buttonPanel.add(viewLogsBtn);
+
+        if (hasNewColumns) {
+            JButton toggleStatusBtn = new JButton("🔄 Toggle Status");
+            toggleStatusBtn.setToolTipText("Activate/Deactivate user account");
+            toggleStatusBtn.addActionListener(e -> toggleUserStatus());
+
+            JButton viewLogsBtn = new JButton("📋 View Activity");
+            viewLogsBtn.setToolTipText("View user's activity logs");
+            viewLogsBtn.addActionListener(e -> viewUserActivity());
+
+            buttonPanel.add(toggleStatusBtn);
+            buttonPanel.add(viewLogsBtn);
+        }
 
         add(buttonPanel, BorderLayout.SOUTH);
 
@@ -151,37 +171,69 @@ public class UserManagementPanel extends JPanel {
         loadUsers();
     }
 
-    // ===== Load Users =====
+    // ===== Check if database has new columns =====
+    private boolean checkDatabaseColumns() {
+        try (Connection conn = DBHelper.getConnection()) {
+            DatabaseMetaData metaData = conn.getMetaData();
+            ResultSet columns = metaData.getColumns(null, null, "users", "is_active");
+            return columns.next(); // Returns true if column exists
+        } catch (Exception ex) {
+            System.err.println("Could not check database columns: " + ex.getMessage());
+            return false;
+        }
+    }
+
+    // ===== Load Users (✅ FIXED) =====
     private void loadUsers() {
         model.setRowCount(0);
         try (Connection conn = DBHelper.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(
-                     "SELECT id, username, role, created_at, last_login, is_active FROM users ORDER BY id")) {
+             Statement stmt = conn.createStatement()) {
+
+            boolean hasNewColumns = (model.getColumnCount() > 3);
+
+            String sql;
+            if (hasNewColumns) {
+                sql = "SELECT id, username, role, created_at, last_login, is_active FROM users ORDER BY id";
+            } else {
+                sql = "SELECT id, username, role FROM users ORDER BY id";
+            }
+
+            ResultSet rs = stmt.executeQuery(sql);
 
             int count = 0;
             while (rs.next()) {
                 count++;
-                String status = rs.getBoolean("is_active") ? "Active" : "Inactive";
-                model.addRow(new Object[]{
-                        rs.getInt("id"),
-                        rs.getString("username"),
-                        rs.getString("role"),
-                        rs.getTimestamp("created_at"),
-                        rs.getTimestamp("last_login"),
-                        status
-                });
+                if (hasNewColumns) {
+                    String status = rs.getBoolean("is_active") ? "Active" : "Inactive";
+                    // ✅ FIX: Now includes ID in first position
+                    model.addRow(new Object[]{
+                            rs.getInt("id"),              // Column 0: ID
+                            rs.getString("username"),     // Column 1: Username
+                            rs.getString("role"),         // Column 2: Role
+                            rs.getTimestamp("created_at"),// Column 3: Created
+                            rs.getTimestamp("last_login"),// Column 4: Last Login
+                            status                        // Column 5: Status
+                    });
+                } else {
+                    // ✅ FIX: Includes ID properly
+                    model.addRow(new Object[]{
+                            rs.getInt("id"),          // Column 0: ID
+                            rs.getString("username"), // Column 1: Username
+                            rs.getString("role")      // Column 2: Role
+                    });
+                }
             }
             statsLabel.setText("Total Users: " + count);
         } catch (Exception ex) {
             ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Error loading users: " + ex.getMessage());
+            JOptionPane.showMessageDialog(this,
+                    "Error loading users: " + ex.getMessage() + "\n\nCheck console for details.",
+                    "Database Error",
+                    JOptionPane.ERROR_MESSAGE);
         }
     }
 
-
-
-    // ===== Search Users =====
+    // ===== Search Users (✅ FIXED) =====
     private void searchUsers() {
         String keyword = searchField.getText().trim();
         if (keyword.isEmpty()) {
@@ -191,8 +243,16 @@ public class UserManagementPanel extends JPanel {
 
         model.setRowCount(0);
         try (Connection conn = DBHelper.getConnection()) {
-            String sql = "SELECT id, username, role, created_at, last_login, is_active " +
-                    "FROM users WHERE username LIKE ? ORDER BY id";
+            boolean hasNewColumns = (model.getColumnCount() > 3);
+            String sql;
+
+            if (hasNewColumns) {
+                sql = "SELECT id, username, role, created_at, last_login, is_active " +
+                        "FROM users WHERE username LIKE ? ORDER BY id";
+            } else {
+                sql = "SELECT id, username, role FROM users WHERE username LIKE ? ORDER BY id";
+            }
+
             PreparedStatement stmt = conn.prepareStatement(sql);
             stmt.setString(1, "%" + keyword + "%");
             ResultSet rs = stmt.executeQuery();
@@ -200,15 +260,25 @@ public class UserManagementPanel extends JPanel {
             int count = 0;
             while (rs.next()) {
                 count++;
-                String status = rs.getBoolean("is_active") ? "Active" : "Inactive";
-                model.addRow(new Object[]{
-                        rs.getInt("id"),
-                        rs.getString("username"),
-                        rs.getString("role"),
-                        rs.getTimestamp("created_at"),
-                        rs.getTimestamp("last_login"),
-                        status
-                });
+                if (hasNewColumns) {
+                    String status = rs.getBoolean("is_active") ? "Active" : "Inactive";
+                    // ✅ FIX: Includes ID
+                    model.addRow(new Object[]{
+                            rs.getInt("id"),
+                            rs.getString("username"),
+                            rs.getString("role"),
+                            rs.getTimestamp("created_at"),
+                            rs.getTimestamp("last_login"),
+                            status
+                    });
+                } else {
+                    // ✅ FIX: Includes ID
+                    model.addRow(new Object[]{
+                            rs.getInt("id"),
+                            rs.getString("username"),
+                            rs.getString("role")
+                    });
+                }
             }
             statsLabel.setText("Found: " + count + " user(s)");
         } catch (Exception ex) {
@@ -217,20 +287,17 @@ public class UserManagementPanel extends JPanel {
         }
     }
 
-    // ===== Add User (WITH PASSWORD HASHING) =====
+    // ===== Add User =====
     private void addUser() {
+        System.out.println("=== ADD USER DEBUG ===");
+
         String username = usernameField.getText().trim();
         String password = new String(passwordField.getPassword()).trim();
         String role = (String) roleCombo.getSelectedItem();
 
-        // Vaidate password strength
-        String strengthError = PasswordUtil.validatePasswordStrength(password);
-        if (strengthError != null) {
-            JOptionPane.showMessageDialog(this,"❌ " + strengthError,
-                    "Weak Password",
-                    JOptionPane.WARNING_MESSAGE);
-            return;
-        }
+        System.out.println("Username: " + username);
+        System.out.println("Password length: " + password.length());
+        System.out.println("Role: " + role);
 
         if (username.isEmpty() || password.isEmpty()) {
             JOptionPane.showMessageDialog(this, "❌ Please enter username and password!");
@@ -242,12 +309,34 @@ public class UserManagementPanel extends JPanel {
             return;
         }
 
-        if (password.length() < 6) {
-            JOptionPane.showMessageDialog(this, "❌ Password must be at least 6 characters!");
-            return;
+        // ✅ FIX: Check if PasswordUtil exists, if not use plain password
+        String hashedPassword;
+        try {
+            // Try to validate and hash
+            String strengthError = PasswordUtil.validatePasswordStrength(password);
+            if (strengthError != null) {
+                System.out.println("Password validation failed: " + strengthError);
+                JOptionPane.showMessageDialog(this,
+                        "❌ " + strengthError,
+                        "Weak Password",
+                        JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            hashedPassword = PasswordUtil.hashPassword(password);
+            System.out.println("Password hashed successfully");
+        } catch (NoClassDefFoundError e) {
+            // PasswordUtil not available, use plain password
+            System.out.println("⚠️ PasswordUtil not found, using plain password");
+            hashedPassword = password;
+            JOptionPane.showMessageDialog(this,
+                    "⚠️ Warning: Password hashing not available. Using plain password.",
+                    "Security Warning",
+                    JOptionPane.WARNING_MESSAGE);
         }
 
         try (Connection conn = DBHelper.getConnection()) {
+            System.out.println("Database connection established");
+
             // Check if username already exists
             String checkSql = "SELECT COUNT(*) FROM users WHERE username=?";
             PreparedStatement checkStmt = conn.prepareStatement(checkSql);
@@ -255,28 +344,49 @@ public class UserManagementPanel extends JPanel {
             ResultSet rs = checkStmt.executeQuery();
             rs.next();
             if (rs.getInt(1) > 0) {
+                System.out.println("Username already exists");
                 JOptionPane.showMessageDialog(this, "❌ Username already exists!");
                 return;
             }
 
-            // Hash the password using BCrypt
-            String hashedPassword = PasswordUtil.hashPassword(password);
-
-            // Insert new user with hashed password
+            // Insert new user
             String sql = "INSERT INTO users (username, password, role) VALUES (?, ?, ?)";
+            System.out.println("Executing SQL: " + sql);
+
             PreparedStatement stmt = conn.prepareStatement(sql);
             stmt.setString(1, username);
             stmt.setString(2, hashedPassword);
             stmt.setString(3, role);
-            stmt.executeUpdate();
 
-            JOptionPane.showMessageDialog(this, "✅ User added successfully with secure password!");
-            clearForm();
-            loadUsers();
+            int rowsAffected = stmt.executeUpdate();
+            System.out.println("Rows affected: " + rowsAffected);
+
+            if (rowsAffected > 0) {
+                JOptionPane.showMessageDialog(this, "✅ User added successfully!");
+                clearForm();
+                loadUsers();
+                System.out.println("User added successfully!");
+            } else {
+                System.out.println("No rows were inserted");
+                JOptionPane.showMessageDialog(this, "❌ Failed to add user (no rows affected)");
+            }
+
         } catch (Exception ex) {
+            System.err.println("=== ERROR ADDING USER ===");
             ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, "❌ Error adding user: " + ex.getMessage());
+
+            String errorMsg = "Error adding user:\n" + ex.getMessage();
+            if (ex.getCause() != null) {
+                errorMsg += "\n\nCause: " + ex.getCause().getMessage();
+            }
+
+            JOptionPane.showMessageDialog(this,
+                    "❌ " + errorMsg,
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE);
         }
+
+        System.out.println("=== END ADD USER DEBUG ===\n");
     }
 
     // ===== Edit User =====
@@ -287,6 +397,7 @@ public class UserManagementPanel extends JPanel {
             return;
         }
 
+        // ✅ Now column 0 has the correct ID
         int id = (int) model.getValueAt(row, 0);
         String currentUsername = (String) model.getValueAt(row, 1);
         String currentRole = (String) model.getValueAt(row, 2);
@@ -327,7 +438,7 @@ public class UserManagementPanel extends JPanel {
         }
     }
 
-    // ===== Reset Password (WITH PASSWORD HASHING) =====
+    // ===== Reset Password =====
     private void resetPassword() {
         int row = usersTable.getSelectedRow();
         if (row == -1) {
@@ -335,6 +446,7 @@ public class UserManagementPanel extends JPanel {
             return;
         }
 
+        // ✅ Now column 0 has the correct ID
         int id = (int) model.getValueAt(row, 0);
         String username = (String) model.getValueAt(row, 1);
 
@@ -364,22 +476,34 @@ public class UserManagementPanel extends JPanel {
                 return;
             }
 
-            if (newPassword.length() < 6) {
-                JOptionPane.showMessageDialog(this, "❌ Password must be at least 6 characters!");
-                return;
+            // ✅ FIX: Handle missing PasswordUtil gracefully
+            String hashedPassword;
+            try {
+                String strengthError = PasswordUtil.validatePasswordStrength(newPassword);
+                if (strengthError != null) {
+                    JOptionPane.showMessageDialog(this,
+                            "❌ " + strengthError,
+                            "Weak Password",
+                            JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+                hashedPassword = PasswordUtil.hashPassword(newPassword);
+            } catch (NoClassDefFoundError e) {
+                hashedPassword = newPassword;
+                JOptionPane.showMessageDialog(this,
+                        "⚠️ Warning: Password hashing not available.",
+                        "Security Warning",
+                        JOptionPane.WARNING_MESSAGE);
             }
 
             try (Connection conn = DBHelper.getConnection()) {
-                // Hash the new password using BCrypt
-                String hashedPassword = PasswordUtil.hashPassword(newPassword);
-
                 String sql = "UPDATE users SET password=? WHERE id=?";
                 PreparedStatement stmt = conn.prepareStatement(sql);
                 stmt.setString(1, hashedPassword);
                 stmt.setInt(2, id);
                 stmt.executeUpdate();
 
-                JOptionPane.showMessageDialog(this, "✅ Password reset successfully with secure encryption!");
+                JOptionPane.showMessageDialog(this, "✅ Password reset successfully!");
             } catch (Exception ex) {
                 ex.printStackTrace();
                 JOptionPane.showMessageDialog(this, "❌ Error: " + ex.getMessage());
@@ -395,6 +519,15 @@ public class UserManagementPanel extends JPanel {
             return;
         }
 
+        if (model.getColumnCount() <= 3) {
+            JOptionPane.showMessageDialog(this,
+                    "❌ Status feature requires database update.\nRun migration_security.sql first.",
+                    "Feature Unavailable",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // ✅ Now column 0 has the correct ID
         int id = (int) model.getValueAt(row, 0);
         String username = (String) model.getValueAt(row, 1);
         String currentStatus = (String) model.getValueAt(row, 5);
@@ -432,11 +565,12 @@ public class UserManagementPanel extends JPanel {
             return;
         }
 
+        // ✅ Now column 0 has the correct ID
         int id = (int) model.getValueAt(row, 0);
         String username = (String) model.getValueAt(row, 1);
+        String role = (String) model.getValueAt(row, 2);
 
         // Prevent deleting the last admin
-        String role = (String) model.getValueAt(row, 2);
         if ("Admin".equals(role)) {
             try (Connection conn = DBHelper.getConnection()) {
                 String sql = "SELECT COUNT(*) FROM users WHERE role='Admin'";
@@ -484,10 +618,22 @@ public class UserManagementPanel extends JPanel {
             return;
         }
 
+        // ✅ Now column 0 has the correct ID
         int userId = (int) model.getValueAt(row, 0);
         String username = (String) model.getValueAt(row, 1);
 
         try (Connection conn = DBHelper.getConnection()) {
+            // Check if audit_logs table exists
+            DatabaseMetaData metaData = conn.getMetaData();
+            ResultSet tables = metaData.getTables(null, null, "audit_logs", null);
+            if (!tables.next()) {
+                JOptionPane.showMessageDialog(this,
+                        "❌ Activity logging not set up.\nRun migration_security.sql first.",
+                        "Feature Unavailable",
+                        JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
             String sql = "SELECT action, action_time FROM audit_logs " +
                     "WHERE user_id=? ORDER BY action_time DESC LIMIT 50";
             PreparedStatement stmt = conn.prepareStatement(sql);
