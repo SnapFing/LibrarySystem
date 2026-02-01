@@ -156,6 +156,7 @@ public class LibrarySystemUI extends JFrame {
             tabbedPane.addTab("📚 Books", new BooksPanel());
             tabbedPane.addTab("🔄 Borrow/Return", new BorrowReturnPanel());
             tabbedPane.addTab("📊 Reports", new ReportsPanel());
+            tabbedPane.addTab("Return Requests", new ReturnRequestsPanel());
 
         } else if ("Admin".equalsIgnoreCase(userRole)) {
             // Admin view - full access
@@ -163,6 +164,7 @@ public class LibrarySystemUI extends JFrame {
             tabbedPane.addTab("👥 Members", new MembersPanel());
             tabbedPane.addTab("📚 Books", new BooksPanel());
             tabbedPane.addTab("🔄 Borrow/Return", new BorrowReturnPanel());
+            tabbedPane.addTab("Return Requests", new ReturnRequestsPanel());
             tabbedPane.addTab("👨‍💼 User Management", new UserManagementPanel());
             tabbedPane.addTab("Fines", new FinesPanel());
             tabbedPane.addTab("📊 Reports", new ReportsPanel());

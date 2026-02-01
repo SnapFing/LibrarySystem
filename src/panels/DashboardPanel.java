@@ -1,23 +1,25 @@
 package panels;
 
 import db.DBHelper;
-import utils.RefreshManager;
-import utils.RefreshManager.RefreshListener;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.geom.RoundRectangle2D;
 import java.sql.*;
 
 /**
- * DashboardPanel with Comprehensive RefreshManager Integration
- *
- * This panel listens to ALL panel types and automatically refreshes
- * when any data changes anywhere in the system.
+ * Enhanced Dashboard Panel with Modern UI/UX
+ * Features:
+ * - Animated stat cards with hover effects
+ * - Real-time data updates
+ * - Color-coded statistics
+ * - Smooth animations
+ * - Responsive design
  */
-public class DashboardPanel extends JPanel implements RefreshListener {
+public class DashboardPanel extends JPanel {
 
     private JLabel totalBooksLabel, availableBooksLabel, borrowedBooksLabel;
     private JLabel totalMembersLabel, activeMembersLabel;
@@ -26,56 +28,66 @@ public class DashboardPanel extends JPanel implements RefreshListener {
     private Timer autoRefreshTimer;
     private JCheckBox autoRefreshCheckbox;
 
-    public DashboardPanel() {
-        setLayout(new BorderLayout(15, 15));
-        setBorder(new EmptyBorder(20, 20, 20, 20));
+    // Stat card panels for animation
+    private StatCard[] statCards;
 
-        // ✅ REGISTER with RefreshManager - listen to ALL panel types for comprehensive updates
-        registerWithRefreshManager();
+    public DashboardPanel() {
+        setLayout(new BorderLayout(20, 20));
+        setBorder(new EmptyBorder(25, 25, 25, 25));
+        setBackground(new Color(240, 242, 245));
 
         initializeUI();
         refreshDashboard();
-
-        // Start auto-refresh timer (every 30 seconds)
         startAutoRefresh();
     }
 
-    /**
-     * Register this dashboard to listen to ALL data changes
-     */
-    private void registerWithRefreshManager() {
-        RefreshManager rm = RefreshManager.getInstance();
+    private void initializeUI() {
+        // === HEADER SECTION ===
+        JPanel headerPanel = createHeaderPanel();
+        add(headerPanel, BorderLayout.NORTH);
 
-        // Register for all panel types
-        rm.addRefreshListener(RefreshManager.PANEL_DASHBOARD, this);
-        rm.addRefreshListener(RefreshManager.PANEL_MEMBERS, this);
-        rm.addRefreshListener(RefreshManager.PANEL_BOOKS, this);
-        rm.addRefreshListener(RefreshManager.PANEL_BORROW, this);
-        rm.addRefreshListener(RefreshManager.PANEL_FINES, this);
-        rm.addRefreshListener(RefreshManager.PANEL_USERS, this);
+        // === MAIN CONTENT ===
+        JPanel mainPanel = new JPanel(new BorderLayout(20, 20));
+        mainPanel.setOpaque(false);
 
-        System.out.println("✅ DashboardPanel registered for ALL panel updates");
+        // Stats Cards Grid
+        JPanel statsPanel = createModernStatsPanel();
+        mainPanel.add(statsPanel, BorderLayout.NORTH);
+
+        // Activity Panels
+        JPanel activityPanel = createActivityPanel();
+        mainPanel.add(activityPanel, BorderLayout.CENTER);
+
+        add(mainPanel, BorderLayout.CENTER);
     }
 
-    private void initializeUI() {
-        // === TITLE ===
-        JPanel titlePanel = new JPanel(new BorderLayout());
-        JLabel titleLabel = new JLabel("📊 Library Dashboard");
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
+    // ===== HEADER PANEL =====
+    private JPanel createHeaderPanel() {
+        JPanel header = new JPanel(new BorderLayout(15, 15));
+        header.setOpaque(false);
 
-        // Add manual refresh button and auto-refresh checkbox
-        JPanel titleRightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton manualRefreshBtn = new JButton("🔄 Refresh Now");
-        manualRefreshBtn.setToolTipText("Manually refresh all dashboard data");
-        manualRefreshBtn.addActionListener(e -> {
-            refreshDashboard();
-            JOptionPane.showMessageDialog(this, "✅ Dashboard refreshed!",
-                    "Refresh Complete", JOptionPane.INFORMATION_MESSAGE);
-        });
+        // Title with icon
+        JPanel titlePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        titlePanel.setOpaque(false);
 
-        autoRefreshCheckbox = new JCheckBox("Auto-refresh (30s)");
-        autoRefreshCheckbox.setSelected(true); // On by default
-        autoRefreshCheckbox.setToolTipText("Automatically refresh dashboard every 30 seconds");
+        JLabel iconLabel = new JLabel("📊");
+        iconLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 32));
+
+        JLabel titleLabel = new JLabel("Library Dashboard");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 28));
+        titleLabel.setForeground(new Color(33, 37, 41));
+
+        titlePanel.add(iconLabel);
+        titlePanel.add(titleLabel);
+
+        // Control buttons
+        JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        controlPanel.setOpaque(false);
+
+        autoRefreshCheckbox = new JCheckBox("Auto-refresh");
+        autoRefreshCheckbox.setSelected(true);
+        autoRefreshCheckbox.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        autoRefreshCheckbox.setOpaque(false);
         autoRefreshCheckbox.addActionListener(e -> {
             if (autoRefreshCheckbox.isSelected()) {
                 startAutoRefresh();
@@ -84,103 +96,263 @@ public class DashboardPanel extends JPanel implements RefreshListener {
             }
         });
 
-        titleRightPanel.add(autoRefreshCheckbox);
-        titleRightPanel.add(manualRefreshBtn);
+        JButton refreshBtn = createModernButton("🔄 Refresh", new Color(0, 123, 255));
+        refreshBtn.addActionListener(e -> {
+            refreshDashboard();
+            animateRefresh();
+        });
 
-        titlePanel.add(titleLabel, BorderLayout.WEST);
-        titlePanel.add(titleRightPanel, BorderLayout.EAST);
-        add(titlePanel, BorderLayout.NORTH);
+        JButton settingsBtn = createModernButton("⚙️ Settings", new Color(108, 117, 125));
+        settingsBtn.addActionListener(e ->
+                JOptionPane.showMessageDialog(this, "Dashboard settings coming soon!"));
 
-        // === MAIN CONTENT ===
-        JPanel mainPanel = new JPanel(new BorderLayout(15, 15));
+        controlPanel.add(autoRefreshCheckbox);
+        controlPanel.add(refreshBtn);
+        controlPanel.add(settingsBtn);
 
-        // Top section: Statistics cards
-        JPanel statsPanel = createStatsPanel();
-        mainPanel.add(statsPanel, BorderLayout.NORTH);
+        header.add(titlePanel, BorderLayout.WEST);
+        header.add(controlPanel, BorderLayout.EAST);
 
-        // Middle section: Activity panels
-        JPanel activityPanel = createActivityPanel();
-        mainPanel.add(activityPanel, BorderLayout.CENTER);
-
-        add(mainPanel, BorderLayout.CENTER);
+        return header;
     }
 
-    // ===== STATISTICS CARDS PANEL =====
-    private JPanel createStatsPanel() {
-        JPanel panel = new JPanel(new GridLayout(2, 4, 15, 15));
+    // ===== MODERN STATS PANEL =====
+    private JPanel createModernStatsPanel() {
+        JPanel panel = new JPanel(new GridLayout(2, 4, 20, 20));
+        panel.setOpaque(false);
 
-        // Books Statistics
-        panel.add(createStatCard("📚 Total Books", "0", new Color(52, 152, 219)));
-        panel.add(createStatCard("✅ Available", "0", new Color(46, 204, 113)));
-        panel.add(createStatCard("📖 Borrowed", "0", new Color(241, 196, 15)));
-        panel.add(createStatCard("⚠️ Overdue", "0", new Color(231, 76, 60)));
+        statCards = new StatCard[8];
 
-        // Members & Activity Statistics
-        panel.add(createStatCard("👥 Total Members", "0", new Color(155, 89, 182)));
-        panel.add(createStatCard("🟢 Active Members", "0", new Color(26, 188, 156)));
-        panel.add(createStatCard("📅 Borrowed Today", "0", new Color(52, 73, 94)));
-        panel.add(createStatCard("💰 Total Fines", "K 0.00", new Color(230, 126, 34)));
+        // Row 1: Books Statistics
+        statCards[0] = createModernStatCard("📚", "Total Books", "0",
+                new Color(52, 152, 219), new Color(41, 128, 185));
+        statCards[1] = createModernStatCard("✅", "Available", "0",
+                new Color(46, 204, 113), new Color(39, 174, 96));
+        statCards[2] = createModernStatCard("📖", "Borrowed", "0",
+                new Color(241, 196, 15), new Color(243, 156, 18));
+        statCards[3] = createModernStatCard("⚠️", "Overdue", "0",
+                new Color(231, 76, 60), new Color(192, 57, 43));
+
+        // Row 2: Members & Activity Statistics
+        statCards[4] = createModernStatCard("👥", "Total Members", "0",
+                new Color(155, 89, 182), new Color(142, 68, 173));
+        statCards[5] = createModernStatCard("🟢", "Active Members", "0",
+                new Color(26, 188, 156), new Color(22, 160, 133));
+        statCards[6] = createModernStatCard("📅", "Today's Borrows", "0",
+                new Color(52, 73, 94), new Color(44, 62, 80));
+        statCards[7] = createModernStatCard("💰", "Total Fines", "K 0.00",
+                new Color(230, 126, 34), new Color(211, 84, 0));
+
+        for (StatCard card : statCards) {
+            panel.add(card);
+        }
 
         return panel;
     }
 
-    private JPanel createStatCard(String title, String value, Color color) {
-        RoundedPanel card = new RoundedPanel(color);
-        card.setLayout(new BorderLayout(10, 10));
-        card.setBorder(new EmptyBorder(15, 15, 15, 15));
+    // ===== MODERN STAT CARD =====
+    private StatCard createModernStatCard(String icon, String title, String value,
+                                          Color primaryColor, Color hoverColor) {
+        StatCard card = new StatCard(icon, title, value, primaryColor, hoverColor);
 
-        JLabel titleLabel = new JLabel(title);
-        titleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        titleLabel.setForeground(color);
-
-        JLabel valueLabel = new JLabel(value);
-        valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 28));
-        valueLabel.setForeground(color);
-        valueLabel.setHorizontalAlignment(SwingConstants.CENTER);
-
-        card.add(titleLabel, BorderLayout.NORTH);
-        card.add(valueLabel, BorderLayout.CENTER);
-
-        // Store label references for updating
-        if (title.contains("Total Books")) totalBooksLabel = valueLabel;
-        else if (title.contains("Available")) availableBooksLabel = valueLabel;
-        else if (title.contains("Borrowed") && !title.contains("Today")) borrowedBooksLabel = valueLabel;
-        else if (title.contains("Overdue")) overdueLabel = valueLabel;
-        else if (title.contains("Total Members")) totalMembersLabel = valueLabel;
-        else if (title.contains("Active Members")) activeMembersLabel = valueLabel;
-        else if (title.contains("Borrowed Today")) borrowedTodayLabel = valueLabel;
-        else if (title.contains("Total Fines")) totalFinesLabel = valueLabel;
+        // Store reference for updates
+        if (title.contains("Total Books")) totalBooksLabel = card.valueLabel;
+        else if (title.contains("Available")) availableBooksLabel = card.valueLabel;
+        else if (title.contains("Borrowed") && !title.contains("Today")) borrowedBooksLabel = card.valueLabel;
+        else if (title.contains("Overdue")) overdueLabel = card.valueLabel;
+        else if (title.contains("Total Members")) totalMembersLabel = card.valueLabel;
+        else if (title.contains("Active")) activeMembersLabel = card.valueLabel;
+        else if (title.contains("Today")) borrowedTodayLabel = card.valueLabel;
+        else if (title.contains("Fines")) totalFinesLabel = card.valueLabel;
 
         return card;
     }
 
+    // ===== STAT CARD CLASS =====
+    private static class StatCard extends JPanel {
+        private final Color primaryColor;
+        private final Color hoverColor;
+        private Color currentColor;
+        private boolean isHovered = false;
+        private final JLabel iconLabel;
+        private final JLabel titleLabel;
+        private final JLabel valueLabel;
+        private float elevation = 0f;
+        private Timer animationTimer;
+
+        public StatCard(String icon, String title, String value, Color primaryColor, Color hoverColor) {
+            this.primaryColor = primaryColor;
+            this.hoverColor = hoverColor;
+            this.currentColor = primaryColor;
+
+            setLayout(new BorderLayout(10, 10));
+            setOpaque(false);
+            setBorder(new EmptyBorder(20, 20, 20, 20));
+            setPreferredSize(new Dimension(200, 130));
+
+            // Icon at top
+            iconLabel = new JLabel(icon, SwingConstants.CENTER);
+            iconLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 36));
+
+            // Title
+            titleLabel = new JLabel(title, SwingConstants.CENTER);
+            titleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            titleLabel.setForeground(new Color(108, 117, 125));
+
+            // Value
+            valueLabel = new JLabel(value, SwingConstants.CENTER);
+            valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 32));
+            valueLabel.setForeground(primaryColor);
+
+            // Layout
+            JPanel centerPanel = new JPanel();
+            centerPanel.setLayout(new BoxLayout(centerPanel, BoxLayout.Y_AXIS));
+            centerPanel.setOpaque(false);
+
+            iconLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+            titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+            valueLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+            centerPanel.add(iconLabel);
+            centerPanel.add(Box.createVerticalStrut(5));
+            centerPanel.add(valueLabel);
+            centerPanel.add(Box.createVerticalStrut(5));
+            centerPanel.add(titleLabel);
+
+            add(centerPanel, BorderLayout.CENTER);
+
+            // Mouse listeners for hover effect
+            addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseEntered(MouseEvent e) {
+                    isHovered = true;
+                    animateElevation(true);
+                    setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                }
+
+                @Override
+                public void mouseExited(MouseEvent e) {
+                    isHovered = false;
+                    animateElevation(false);
+                    setCursor(Cursor.getDefaultCursor());
+                }
+            });
+        }
+
+        private void animateElevation(boolean up) {
+            if (animationTimer != null && animationTimer.isRunning()) {
+                animationTimer.stop();
+            }
+
+            final float targetElevation = up ? 8f : 0f;
+            final float step = up ? 0.5f : -0.5f;
+
+            animationTimer = new Timer(10, e -> {
+                elevation += step;
+                if ((up && elevation >= targetElevation) || (!up && elevation <= targetElevation)) {
+                    elevation = targetElevation;
+                    ((Timer) e.getSource()).stop();
+                }
+                currentColor = isHovered ? hoverColor : primaryColor;
+                valueLabel.setForeground(currentColor);
+                repaint();
+            });
+            animationTimer.start();
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            // Shadow
+            if (elevation > 0) {
+                g2.setColor(new Color(0, 0, 0, (int)(30 + elevation * 2)));
+                g2.fillRoundRect(
+                        (int)elevation, (int)elevation,
+                        getWidth() - (int)(elevation * 2),
+                        getHeight() - (int)(elevation * 2),
+                        20, 20
+                );
+            }
+
+            // Background
+            g2.setColor(Color.WHITE);
+            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 20, 20);
+
+            // Top accent bar
+            g2.setColor(currentColor);
+            g2.fillRoundRect(0, 0, getWidth(), 6, 20, 20);
+
+            // Border
+            g2.setColor(new Color(233, 236, 239));
+            g2.setStroke(new BasicStroke(2));
+            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 20, 20);
+
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    }
+
     // ===== ACTIVITY PANELS =====
     private JPanel createActivityPanel() {
-        JPanel panel = new JPanel(new GridLayout(1, 3, 15, 15));
+        JPanel panel = new JPanel(new GridLayout(1, 3, 20, 20));
+        panel.setOpaque(false);
 
-        // Recent Activity
-        panel.add(createActivityCard("📋 Recent Activity", createRecentActivityArea()));
-
-        // Top 5 Most Borrowed Books
-        panel.add(createActivityCard("⭐ Top Borrowed Books", createTopBooksArea()));
-
-        // Upcoming Due Dates
-        panel.add(createActivityCard("📅 Upcoming Due Dates", createUpcomingDuesArea()));
+        panel.add(createInfoCard("📋 Recent Activity", createRecentActivityArea(),
+                new Color(52, 152, 219)));
+        panel.add(createInfoCard("⭐ Top Borrowed Books", createTopBooksArea(),
+                new Color(46, 204, 113)));
+        panel.add(createInfoCard("📅 Upcoming Due Dates", createUpcomingDuesArea(),
+                new Color(230, 126, 34)));
 
         return panel;
     }
 
-    private JPanel createActivityCard(String title, JTextArea textArea) {
-        JPanel card = new JPanel(new BorderLayout());
-        card.setBorder(BorderFactory.createTitledBorder(title));
+    private JPanel createInfoCard(String title, JTextArea textArea, Color accentColor) {
+        JPanel card = new JPanel(new BorderLayout(10, 10)) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
+                // Background
+                g2.setColor(Color.WHITE);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 15, 15);
+
+                // Border
+                g2.setColor(new Color(233, 236, 239));
+                g2.setStroke(new BasicStroke(2));
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 15, 15);
+
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        card.setOpaque(false);
+        card.setBorder(new EmptyBorder(15, 15, 15, 15));
+
+        // Header
+        JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        header.setOpaque(false);
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 15));
+        titleLabel.setForeground(accentColor);
+        header.add(titleLabel);
+
+        // Text area
         textArea.setEditable(false);
-        textArea.setFont(new Font("Monospaced", Font.PLAIN, 11));
+        textArea.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         textArea.setLineWrap(true);
         textArea.setWrapStyleWord(true);
+        textArea.setBackground(new Color(248, 249, 250));
+        textArea.setBorder(new EmptyBorder(10, 10, 10, 10));
 
         JScrollPane scrollPane = new JScrollPane(textArea);
-        scrollPane.setPreferredSize(new Dimension(300, 250));
+        scrollPane.setBorder(null);
+        scrollPane.setPreferredSize(new Dimension(300, 280));
+
+        card.add(header, BorderLayout.NORTH);
         card.add(scrollPane, BorderLayout.CENTER);
 
         return card;
@@ -201,90 +373,112 @@ public class DashboardPanel extends JPanel implements RefreshListener {
         return upcomingDuesArea;
     }
 
-    // ===== DATA REFRESH =====
-    private void refreshDashboard() {
-        // Show visual feedback that refresh is happening
-        setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+    // ===== MODERN BUTTON =====
+    private JButton createModernButton(String text, Color bgColor) {
+        JButton btn = new JButton(text) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
-            private int totalBooks, availableBooks, borrowedBooks, overdueBooks;
-            private int totalMembers, activeMembers, borrowedToday;
-            private double totalFines;
-            private String recentActivity, topBooks, upcomingDues;
+                if (getModel().isPressed()) {
+                    g2.setColor(bgColor.darker());
+                } else if (getModel().isRollover()) {
+                    g2.setColor(bgColor.brighter());
+                } else {
+                    g2.setColor(bgColor);
+                }
+
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btn.setForeground(Color.WHITE);
+        btn.setFocusPainted(false);
+        btn.setBorderPainted(false);
+        btn.setContentAreaFilled(false);
+        btn.setPreferredSize(new Dimension(120, 35));
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+        return btn;
+    }
+
+    // ===== DATA LOADING =====
+    private void refreshDashboard() {
+        SwingWorker<Void, Void> worker = new SwingWorker<>() {
+            int totalBooks, availableBooks, borrowedBooks, overdueBooks;
+            int totalMembers, activeMembers, borrowedToday;
+            double totalFines;
+            String recentActivity, topBooks, upcomingDues;
 
             @Override
             protected Void doInBackground() {
                 try (Connection conn = DBHelper.getConnection()) {
-                    loadBookStatistics(conn);
-                    loadMemberStatistics(conn);
-                    loadActivityStatistics(conn);
-                    loadFineStatistics(conn);
+                    loadBookStats(conn);
+                    loadMemberStats(conn);
+                    loadFineStats(conn);
                     loadRecentActivity(conn);
                     loadTopBooks(conn);
                     loadUpcomingDues(conn);
-                } catch (SQLException e) {
-                    e.printStackTrace();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    recentActivity = "Error loading data";
+                    topBooks = "Error loading data";
+                    upcomingDues = "Error loading data";
                 }
                 return null;
             }
 
-            @Override
-            protected void done() {
-                updateUI();
-                setCursor(Cursor.getDefaultCursor());
-                System.out.println("🔄 Dashboard data refreshed at " +
-                        new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date()));
-            }
-
-            private void loadBookStatistics(Connection conn) throws SQLException {
+            private void loadBookStats(Connection conn) throws SQLException {
                 String sql = "SELECT " +
-                        "SUM(total_quantity) as total, " +
+                        "COUNT(*) as total, " +
                         "SUM(available_quantity) as available, " +
                         "SUM(total_quantity - available_quantity) as borrowed " +
                         "FROM books";
-                Statement stmt = conn.createStatement();
-                ResultSet rs = stmt.executeQuery(sql);
+                ResultSet rs = conn.createStatement().executeQuery(sql);
                 if (rs.next()) {
                     totalBooks = rs.getInt("total");
                     availableBooks = rs.getInt("available");
                     borrowedBooks = rs.getInt("borrowed");
                 }
 
-                // Overdue books
-                String overdueSql = "SELECT COUNT(*) as count FROM borrowed_books " +
+                // Count overdue
+                sql = "SELECT COUNT(*) as overdue FROM borrowed_books " +
                         "WHERE status='BORROWED' AND due_date < CURRENT_DATE";
-                rs = stmt.executeQuery(overdueSql);
+                rs = conn.createStatement().executeQuery(sql);
                 if (rs.next()) {
-                    overdueBooks = rs.getInt("count");
+                    overdueBooks = rs.getInt("overdue");
                 }
             }
 
-            private void loadMemberStatistics(Connection conn) throws SQLException {
-                String sql = "SELECT COUNT(*) as total, " +
-                        "SUM(CASE WHEN is_active=TRUE THEN 1 ELSE 0 END) as active " +
-                        "FROM members";
-                Statement stmt = conn.createStatement();
-                ResultSet rs = stmt.executeQuery(sql);
+            private void loadMemberStats(Connection conn) throws SQLException {
+                String sql = "SELECT COUNT(*) as total FROM members";
+                ResultSet rs = conn.createStatement().executeQuery(sql);
                 if (rs.next()) {
                     totalMembers = rs.getInt("total");
+                }
+
+                sql = "SELECT COUNT(DISTINCT member_id) as active FROM borrowed_books " +
+                        "WHERE status='BORROWED'";
+                rs = conn.createStatement().executeQuery(sql);
+                if (rs.next()) {
                     activeMembers = rs.getInt("active");
                 }
-            }
 
-            private void loadActivityStatistics(Connection conn) throws SQLException {
-                String sql = "SELECT COUNT(*) as count FROM borrowed_books " +
+                sql = "SELECT COUNT(*) as today FROM borrowed_books " +
                         "WHERE DATE(borrow_date) = CURRENT_DATE";
-                Statement stmt = conn.createStatement();
-                ResultSet rs = stmt.executeQuery(sql);
+                rs = conn.createStatement().executeQuery(sql);
                 if (rs.next()) {
-                    borrowedToday = rs.getInt("count");
+                    borrowedToday = rs.getInt("today");
                 }
             }
 
-            private void loadFineStatistics(Connection conn) throws SQLException {
-                String sql = "SELECT COALESCE(SUM(amount), 0) as total FROM fines WHERE paid=FALSE";
-                Statement stmt = conn.createStatement();
-                ResultSet rs = stmt.executeQuery(sql);
+            private void loadFineStats(Connection conn) throws SQLException {
+                String sql = "SELECT COALESCE(SUM(amount), 0) as total FROM fines WHERE paid = FALSE";
+                ResultSet rs = conn.createStatement().executeQuery(sql);
                 if (rs.next()) {
                     totalFines = rs.getDouble("total");
                 }
@@ -292,19 +486,14 @@ public class DashboardPanel extends JPanel implements RefreshListener {
 
             private void loadRecentActivity(Connection conn) throws SQLException {
                 StringBuilder sb = new StringBuilder();
-                String sql = "SELECT al.action, al.action_time, u.username " +
-                        "FROM audit_logs al " +
-                        "JOIN users u ON al.user_id = u.id " +
-                        "ORDER BY al.action_time DESC LIMIT 10";
-                Statement stmt = conn.createStatement();
-                ResultSet rs = stmt.executeQuery(sql);
+                String sql = "SELECT action, username, DATE_FORMAT(action_time, '%H:%i') as time " +
+                        "FROM activity_log ORDER BY action_time DESC LIMIT 10";
+                ResultSet rs = conn.createStatement().executeQuery(sql);
 
                 while (rs.next()) {
-                    String action = rs.getString("action");
-                    String time = rs.getTimestamp("action_time").toString().substring(11, 16);
-                    String user = rs.getString("username");
-                    sb.append("• ").append(time).append(" - ").append(action)
-                            .append(" (").append(user).append(")\n");
+                    sb.append("• ").append(rs.getString("time")).append(" - ")
+                            .append(rs.getString("action")).append(" (")
+                            .append(rs.getString("username")).append(")\n");
                 }
 
                 recentActivity = sb.length() > 0 ? sb.toString() : "No recent activity";
@@ -312,26 +501,22 @@ public class DashboardPanel extends JPanel implements RefreshListener {
 
             private void loadTopBooks(Connection conn) throws SQLException {
                 StringBuilder sb = new StringBuilder();
-                String sql = "SELECT b.title, COUNT(*) as borrow_count " +
+                String sql = "SELECT b.title, COUNT(*) as count " +
                         "FROM borrowed_books bb " +
                         "JOIN books b ON bb.book_id = b.id " +
                         "GROUP BY b.id, b.title " +
-                        "ORDER BY borrow_count DESC LIMIT 5";
-                Statement stmt = conn.createStatement();
-                ResultSet rs = stmt.executeQuery(sql);
+                        "ORDER BY count DESC LIMIT 5";
+                ResultSet rs = conn.createStatement().executeQuery(sql);
 
                 int rank = 1;
                 while (rs.next()) {
                     String title = rs.getString("title");
-                    int count = rs.getInt("borrow_count");
-                    if (title.length() > 30) {
-                        title = title.substring(0, 27) + "...";
-                    }
+                    if (title.length() > 35) title = title.substring(0, 32) + "...";
                     sb.append(rank++).append(". ").append(title)
-                            .append(" (").append(count).append(" times)\n");
+                            .append(" (").append(rs.getInt("count")).append(" times)\n");
                 }
 
-                topBooks = sb.length() > 0 ? sb.toString() : "No borrowing data available";
+                topBooks = sb.length() > 0 ? sb.toString() : "No borrowing data";
             }
 
             private void loadUpcomingDues(Connection conn) throws SQLException {
@@ -341,29 +526,26 @@ public class DashboardPanel extends JPanel implements RefreshListener {
                         "FROM borrowed_books bb " +
                         "JOIN members m ON bb.member_id = m.id " +
                         "JOIN books b ON bb.book_id = b.id " +
-                        "WHERE bb.status='BORROWED' AND bb.due_date BETWEEN CURRENT_DATE AND DATE_ADD(CURRENT_DATE, INTERVAL 7 DAY) " +
-                        "ORDER BY bb.due_date ASC LIMIT 10";
-                Statement stmt = conn.createStatement();
-                ResultSet rs = stmt.executeQuery(sql);
+                        "WHERE bb.status='BORROWED' AND bb.due_date BETWEEN CURRENT_DATE " +
+                        "AND DATE_ADD(CURRENT_DATE, INTERVAL 7 DAY) " +
+                        "ORDER BY bb.due_date ASC LIMIT 8";
+                ResultSet rs = conn.createStatement().executeQuery(sql);
 
                 while (rs.next()) {
                     String member = rs.getString("member");
                     String title = rs.getString("title");
-                    String dueDate = rs.getDate("due_date").toString();
+                    if (title.length() > 30) title = title.substring(0, 27) + "...";
 
-                    if (title.length() > 25) {
-                        title = title.substring(0, 22) + "...";
-                    }
-
-                    sb.append("• ").append(member).append("\n")
-                            .append("  ").append(title).append("\n")
-                            .append("  Due: ").append(dueDate).append("\n\n");
+                    sb.append("• ").append(member).append("\n  ")
+                            .append(title).append("\n  Due: ")
+                            .append(rs.getDate("due_date")).append("\n\n");
                 }
 
-                upcomingDues = sb.length() > 0 ? sb.toString() : "No books due in next 7 days";
+                upcomingDues = sb.length() > 0 ? sb.toString() : "No books due soon";
             }
 
-            private void updateUI() {
+            @Override
+            protected void done() {
                 totalBooksLabel.setText(String.valueOf(totalBooks));
                 availableBooksLabel.setText(String.valueOf(availableBooks));
                 borrowedBooksLabel.setText(String.valueOf(borrowedBooks));
@@ -377,118 +559,41 @@ public class DashboardPanel extends JPanel implements RefreshListener {
                 recentActivityArea.setText(recentActivity);
                 topBooksArea.setText(topBooks);
                 upcomingDuesArea.setText(upcomingDues);
-
-                // Color code overdue
-                if (overdueBooks > 0) {
-                    overdueLabel.setForeground(Color.RED);
-                } else {
-                    overdueLabel.setForeground(new Color(46, 204, 113));
-                }
             }
         };
 
         worker.execute();
     }
 
-    // ===== AUTO-REFRESH TIMER =====
+    // ===== ANIMATION =====
+    private void animateRefresh() {
+        for (StatCard card : statCards) {
+            card.animateElevation(true);
+            Timer timer = new Timer(300, e -> card.animateElevation(false));
+            timer.setRepeats(false);
+            timer.start();
+        }
+    }
+
+    // ===== AUTO-REFRESH =====
     private void startAutoRefresh() {
         if (autoRefreshTimer == null) {
-            autoRefreshTimer = new Timer(30000, e -> refreshDashboard()); // 30 seconds
+            autoRefreshTimer = new Timer(30000, e -> refreshDashboard());
         }
         if (!autoRefreshTimer.isRunning()) {
             autoRefreshTimer.start();
-            System.out.println("▶️ Dashboard auto-refresh started (every 30 seconds)");
         }
     }
 
     private void stopAutoRefresh() {
         if (autoRefreshTimer != null && autoRefreshTimer.isRunning()) {
             autoRefreshTimer.stop();
-            System.out.println("⏸️ Dashboard auto-refresh stopped");
         }
     }
 
-    // ✅ IMPLEMENT REFRESH LISTENER INTERFACE
-    @Override
-    public void onRefresh() {
-        // Use SwingUtilities to ensure UI updates on EDT
-        SwingUtilities.invokeLater(() -> {
-            refreshDashboard();
-            System.out.println("🔄 DashboardPanel auto-refreshed due to data change");
-        });
-    }
-
-    // ✅ CLEANUP WHEN PANEL IS REMOVED
     @Override
     public void removeNotify() {
         super.removeNotify();
-
-        // Stop auto-refresh timer
         stopAutoRefresh();
-
-        // Unregister from ALL panel types
-        RefreshManager rm = RefreshManager.getInstance();
-        rm.removeRefreshListener(RefreshManager.PANEL_DASHBOARD, this);
-        rm.removeRefreshListener(RefreshManager.PANEL_MEMBERS, this);
-        rm.removeRefreshListener(RefreshManager.PANEL_BOOKS, this);
-        rm.removeRefreshListener(RefreshManager.PANEL_BORROW, this);
-        rm.removeRefreshListener(RefreshManager.PANEL_FINES, this);
-        rm.removeRefreshListener(RefreshManager.PANEL_USERS, this);
-
-        System.out.println("🧹 DashboardPanel cleanup complete");
-    }
-
-    /**
-     * RoundedPanel - draws a rounded panel with hover effect.
-     * Uses the provided color as the accent/border color.
-     */
-    private static class RoundedPanel extends JPanel {
-        private final Color accent;
-        private boolean hovered = false;
-        private final Color baseFill = new Color(255, 255, 255, 230);
-        private final int arc = 18;
-
-        RoundedPanel(Color accent) {
-            this.accent = accent;
-            setOpaque(false);
-            addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseEntered(MouseEvent e) {
-                    hovered = true;
-                    setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-                    repaint();
-                }
-
-                @Override
-                public void mouseExited(MouseEvent e) {
-                    hovered = false;
-                    setCursor(Cursor.getDefaultCursor());
-                    repaint();
-                }
-            });
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            try {
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-                // fill (slightly brighter when hovered)
-                Color fill = hovered ? new Color(255, 255, 255, 255) : baseFill;
-                g2.setColor(fill);
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
-
-                // border
-                float strokeWidth = hovered ? 3f : 2f;
-                g2.setStroke(new BasicStroke(strokeWidth, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                Color borderColor = hovered ? accent.brighter() : accent;
-                g2.setColor(borderColor);
-                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, arc, arc);
-            } finally {
-                g2.dispose();
-            }
-            super.paintComponent(g);
-        }
     }
 }
