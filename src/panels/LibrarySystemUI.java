@@ -6,6 +6,7 @@ import com.formdev.flatlaf.intellijthemes.materialthemeuilite.*;
 import panels.students.MyBorrowedBooksPanel;
 import panels.students.StudentBooksPanel;
 import panels.students.StudentProfilePanel;
+import panels.students.BooksByCategoryPanel;
 import db.DBHelper;
 
 import javax.swing.*;
@@ -145,6 +146,7 @@ public class LibrarySystemUI extends JFrame {
         if ("Student".equalsIgnoreCase(userRole)) {
             // Student view - limited access
             tabbedPane.addTab("📚 Browse Books", new StudentBooksPanel());
+            tabbedPane.addTab("📂 Books by Category", new BooksByCategoryPanel());
             tabbedPane.addTab("📖 My Borrowed Books", new MyBorrowedBooksPanel(username));
             tabbedPane.addTab("👤 My Profile", new StudentProfilePanel(username));
 

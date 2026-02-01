@@ -7,6 +7,8 @@ import com.itextpdf.text.pdf.PdfPTable;
 import com.itextpdf.text.pdf.PdfWriter;
 import db.DBHelper;
 import utils.ValidationUtils;
+import utils.RefreshManager;
+import utils.RefreshManager.RefreshListener;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -18,18 +20,38 @@ import java.io.PrintWriter;
 import java.sql.*;
 import java.util.Arrays;
 
-public class MembersPanel extends JPanel {
+/**
+ * MembersPanel - FULLY INTEGRATED with RefreshManager
+ *
+ * IMPROVEMENTS MADE:
+ * ✅ Listens for refresh events from other panels
+ * ✅ Triggers refresh in Dashboard and Borrow panels after changes
+ * ✅ Auto-refresh timer with checkbox control
+ * ✅ Proper cleanup in removeNotify()
+ * ✅ Comprehensive validation
+ */
+public class MembersPanel extends JPanel implements RefreshListener {
     private JTextField fnameField, lnameField, emailField, phoneField, addressField, searchField;
     private JComboBox<String> searchByCombo;
-    private JButton addButton, editButton, deleteButton, searchButton;
+    private JButton addButton, editButton, deleteButton, searchButton, refreshButton;
     private JTable membersTable;
     private Timer refreshTimer;
     private DefaultTableModel tableModel;
+    private JCheckBox autoRefreshCheckbox;
 
     public MembersPanel() {
         setLayout(new BorderLayout(10,10));
         setBorder(BorderFactory.createEmptyBorder(10,10,10,10));
 
+        // ✅ REGISTER with RefreshManager
+        RefreshManager.getInstance().addRefreshListener(RefreshManager.PANEL_MEMBERS, this);
+        System.out.println("✅ MembersPanel registered with RefreshManager");
+
+        initializeUI();
+        loadMembersFromDatabase();
+    }
+
+    private void initializeUI() {
         // ==== FORM PANEL ====
         JPanel formPanel = new JPanel(new GridBagLayout());
         formPanel.setBorder(BorderFactory.createTitledBorder("📝 Register Member"));
@@ -103,6 +125,13 @@ public class MembersPanel extends JPanel {
         searchButton.addActionListener(e -> handleSearch());
         searchPanel.add(searchButton, sgbc);
 
+        // AUTO REFRESH CHECKBOX
+        sgbc.gridy = 3;
+        autoRefreshCheckbox = new JCheckBox("Auto-refresh (every 5s)");
+        autoRefreshCheckbox.setToolTipText("Automatically refresh the table every 5 seconds");
+        autoRefreshCheckbox.addActionListener(e -> toggleAutoRefresh());
+        searchPanel.add(autoRefreshCheckbox, sgbc);
+
         // Top container: form + search side by side
         JPanel topPanel = new JPanel(new GridLayout(1,2,10,10));
         topPanel.add(formPanel);
@@ -110,8 +139,8 @@ public class MembersPanel extends JPanel {
         add(topPanel, BorderLayout.NORTH);
 
         // ==== TABLE SECTION ====
-        // Column row number
-        tableModel = new DefaultTableModel(new String[]{"#","First Name","Last Name","Email","Phone","Address","Member Since"},0){
+        tableModel = new DefaultTableModel(new String[]{
+                "#","First Name","Last Name","Email","Phone","Address","Member Since"},0){
             @Override
             public boolean isCellEditable(int row,int col){ return false; }
         };
@@ -143,13 +172,15 @@ public class MembersPanel extends JPanel {
         viewHistoryButton.setToolTipText("View member's borrowing history");
         viewHistoryButton.addActionListener(e -> viewBorrowingHistory());
 
-        JButton refreshButton = new JButton("🔄 Refresh");
+        // REFRESH BUTTON
+        refreshButton = new JButton("🔄 Refresh");
+        refreshButton.setToolTipText("Manually refresh member list");
+        refreshButton.addActionListener(e -> loadMembersFromDatabase());
 
         bottomPanel.add(editButton);
         bottomPanel.add(deleteButton);
         bottomPanel.add(viewHistoryButton);
-
-
+        bottomPanel.add(refreshButton);
 
         JButton exportCSVButton = new JButton("📄 Export CSV");
         exportCSVButton.setToolTipText("Export members to CSV");
@@ -171,8 +202,45 @@ public class MembersPanel extends JPanel {
         bottomPanel.add(exportPDFButton);
 
         add(bottomPanel, BorderLayout.SOUTH);
+    }
 
-        loadMembersFromDatabase();
+    // ===== ✅ IMPLEMENT REFRESH LISTENER INTERFACE =====
+    @Override
+    public void onRefresh() {
+        // Called when another panel triggers a refresh
+        System.out.println("📥 MembersPanel received refresh signal");
+        SwingUtilities.invokeLater(() -> {
+            loadMembersFromDatabase();
+            System.out.println("✅ MembersPanel refreshed");
+        });
+    }
+
+    // ===== ✅ AUTO-REFRESH TOGGLE =====
+    private void toggleAutoRefresh() {
+        if (autoRefreshCheckbox.isSelected()) {
+            startAutoRefresh();
+        } else {
+            stopAutoRefresh();
+        }
+    }
+
+    private void startAutoRefresh() {
+        if (refreshTimer == null) {
+            refreshTimer = new Timer(5000, e -> {
+                loadMembersFromDatabase();
+                System.out.println("🔄 Auto-refreshed members table at: " + new java.util.Date());
+            });
+            refreshTimer.start();
+            System.out.println("▶️ Auto-refresh started (every 5 seconds)");
+        }
+    }
+
+    private void stopAutoRefresh() {
+        if (refreshTimer != null) {
+            refreshTimer.stop();
+            refreshTimer = null;
+            System.out.println("⏸️ Auto-refresh stopped");
+        }
     }
 
     // ===== Add Member with Comprehensive Validation =====
@@ -255,6 +323,15 @@ public class MembersPanel extends JPanel {
             clearForm();
             loadMembersFromDatabase();
 
+            // ✅✅✅ TRIGGER REFRESH IN OTHER PANELS ✅✅✅
+            // This is what was MISSING in your original code!
+            RefreshManager.getInstance().notifyRefresh(RefreshManager.PANEL_MEMBERS);
+            RefreshManager.getInstance().notifyRefresh(RefreshManager.PANEL_DASHBOARD);
+            // Also refresh borrow panel as it shows member autocomplete
+            RefreshManager.getInstance().notifyRefresh(RefreshManager.PANEL_BORROW);
+
+            System.out.println("📢 Triggered refresh after adding member");
+
         }catch(SQLException e){
             e.printStackTrace();
             showError("Database error: " + e.getMessage());
@@ -295,7 +372,9 @@ public class MembersPanel extends JPanel {
                         rs.getDate("membership_date")
                 });
             }
-        }catch(SQLException e){ e.printStackTrace(); }
+        }catch(SQLException e){
+            e.printStackTrace();
+        }
     }
 
     // ===== Search =====
@@ -331,7 +410,9 @@ public class MembersPanel extends JPanel {
                         rs.getDate("membership_date")
                 });
             }
-        }catch(SQLException e){ e.printStackTrace(); }
+        }catch(SQLException e){
+            e.printStackTrace();
+        }
     }
 
     // ===== Edit =====
@@ -395,6 +476,14 @@ public class MembersPanel extends JPanel {
 
             JOptionPane.showMessageDialog(this,"✅ Member updated successfully.");
             loadMembersFromDatabase();
+
+            // ✅✅✅ TRIGGER REFRESH IN OTHER PANELS ✅✅✅
+            RefreshManager.getInstance().notifyRefresh(RefreshManager.PANEL_MEMBERS);
+            RefreshManager.getInstance().notifyRefresh(RefreshManager.PANEL_DASHBOARD);
+            RefreshManager.getInstance().notifyRefresh(RefreshManager.PANEL_BORROW);
+
+            System.out.println("📢 Triggered refresh after editing member");
+
         }catch(SQLException e){
             e.printStackTrace();
             JOptionPane.showMessageDialog(this,"Error: "+e.getMessage());
@@ -410,7 +499,7 @@ public class MembersPanel extends JPanel {
         }
 
         int id = (int)tableModel.getValueAt(row, 0);
-        String memberName = (String) tableModel.getValueAt(row, 1);
+        String memberName = tableModel.getValueAt(row, 1) + " " + tableModel.getValueAt(row, 2);
 
         int confirm = JOptionPane.showConfirmDialog(this,
                 "Are you sure you want to delete member:\n " + memberName + "?",
@@ -421,7 +510,22 @@ public class MembersPanel extends JPanel {
         if(confirm != JOptionPane.YES_OPTION) return;
 
         try(Connection conn = DBHelper.getConnection()){
-            // Soft delete by ID - set is_active to FALSE
+            // Check if member has any borrowed books
+            String checkSql = "SELECT COUNT(*) FROM borrowed_books WHERE member_id=? AND status='BORROWED'";
+            PreparedStatement checkStmt = conn.prepareStatement(checkSql);
+            checkStmt.setInt(1, id);
+            ResultSet rs = checkStmt.executeQuery();
+            rs.next();
+            if(rs.getInt(1) > 0) {
+                JOptionPane.showMessageDialog(this,
+                        "❌ Cannot delete member with active borrowed books!\n" +
+                                "Please return all books first.",
+                        "Delete Error",
+                        JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            // Delete member (hard delete as per your SQL)
             String sql = "DELETE FROM members WHERE id=?";
             PreparedStatement stmt = conn.prepareStatement(sql);
             stmt.setInt(1, id);
@@ -430,9 +534,17 @@ public class MembersPanel extends JPanel {
             if (rowsDeleted > 0) {
                 JOptionPane.showMessageDialog(this, "✅ Member deleted successfully.");
                 loadMembersFromDatabase();
+
+                // ✅✅✅ TRIGGER REFRESH IN OTHER PANELS ✅✅✅
+                RefreshManager.getInstance().notifyRefresh(RefreshManager.PANEL_MEMBERS);
+                RefreshManager.getInstance().notifyRefresh(RefreshManager.PANEL_DASHBOARD);
+                RefreshManager.getInstance().notifyRefresh(RefreshManager.PANEL_BORROW);
+
+                System.out.println("📢 Triggered refresh after deleting member");
             } else {
                 JOptionPane.showMessageDialog(this, "❌ Failed to delete member.");
             }
+
         } catch(SQLException e){
             e.printStackTrace();
             JOptionPane.showMessageDialog(this,"Error: " + e.getMessage());
@@ -569,5 +681,14 @@ public class MembersPanel extends JPanel {
         emailField.setText("");
         phoneField.setText("");
         addressField.setText("");
+    }
+
+    // ===== ✅ CLEANUP WHEN PANEL IS REMOVED =====
+    @Override
+    public void removeNotify() {
+        super.removeNotify();
+        stopAutoRefresh();
+        RefreshManager.getInstance().removeRefreshListener(RefreshManager.PANEL_MEMBERS, this);
+        System.out.println("🧹 MembersPanel cleanup complete");
     }
 }

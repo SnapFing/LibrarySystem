@@ -1,6 +1,8 @@
 package panels;
 
 import db.DBHelper;
+import utils.RefreshManager;
+import utils.RefreshManager.RefreshListener;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -8,28 +10,85 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.sql.*;
-import java.time.LocalDate;
 
 /**
- * Dashboard Panel - Shows key library metrics and statistics at a glance.
+ * DashboardPanel with Comprehensive RefreshManager Integration
+ *
+ * This panel listens to ALL panel types and automatically refreshes
+ * when any data changes anywhere in the system.
  */
-public class DashboardPanel extends JPanel {
+public class DashboardPanel extends JPanel implements RefreshListener {
 
     private JLabel totalBooksLabel, availableBooksLabel, borrowedBooksLabel;
     private JLabel totalMembersLabel, activeMembersLabel;
     private JLabel borrowedTodayLabel, overdueLabel, totalFinesLabel;
     private JTextArea recentActivityArea, topBooksArea, upcomingDuesArea;
-    private Timer refreshTimer;
+    private Timer autoRefreshTimer;
+    private JCheckBox autoRefreshCheckbox;
 
     public DashboardPanel() {
         setLayout(new BorderLayout(15, 15));
         setBorder(new EmptyBorder(20, 20, 20, 20));
 
+        // ✅ REGISTER with RefreshManager - listen to ALL panel types for comprehensive updates
+        registerWithRefreshManager();
+
+        initializeUI();
+        refreshDashboard();
+
+        // Start auto-refresh timer (every 30 seconds)
+        startAutoRefresh();
+    }
+
+    /**
+     * Register this dashboard to listen to ALL data changes
+     */
+    private void registerWithRefreshManager() {
+        RefreshManager rm = RefreshManager.getInstance();
+
+        // Register for all panel types
+        rm.addRefreshListener(RefreshManager.PANEL_DASHBOARD, this);
+        rm.addRefreshListener(RefreshManager.PANEL_MEMBERS, this);
+        rm.addRefreshListener(RefreshManager.PANEL_BOOKS, this);
+        rm.addRefreshListener(RefreshManager.PANEL_BORROW, this);
+        rm.addRefreshListener(RefreshManager.PANEL_FINES, this);
+        rm.addRefreshListener(RefreshManager.PANEL_USERS, this);
+
+        System.out.println("✅ DashboardPanel registered for ALL panel updates");
+    }
+
+    private void initializeUI() {
         // === TITLE ===
-        JPanel titlePanel = new JPanel();
+        JPanel titlePanel = new JPanel(new BorderLayout());
         JLabel titleLabel = new JLabel("📊 Library Dashboard");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
-        titlePanel.add(titleLabel);
+
+        // Add manual refresh button and auto-refresh checkbox
+        JPanel titleRightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton manualRefreshBtn = new JButton("🔄 Refresh Now");
+        manualRefreshBtn.setToolTipText("Manually refresh all dashboard data");
+        manualRefreshBtn.addActionListener(e -> {
+            refreshDashboard();
+            JOptionPane.showMessageDialog(this, "✅ Dashboard refreshed!",
+                    "Refresh Complete", JOptionPane.INFORMATION_MESSAGE);
+        });
+
+        autoRefreshCheckbox = new JCheckBox("Auto-refresh (30s)");
+        autoRefreshCheckbox.setSelected(true); // On by default
+        autoRefreshCheckbox.setToolTipText("Automatically refresh dashboard every 30 seconds");
+        autoRefreshCheckbox.addActionListener(e -> {
+            if (autoRefreshCheckbox.isSelected()) {
+                startAutoRefresh();
+            } else {
+                stopAutoRefresh();
+            }
+        });
+
+        titleRightPanel.add(autoRefreshCheckbox);
+        titleRightPanel.add(manualRefreshBtn);
+
+        titlePanel.add(titleLabel, BorderLayout.WEST);
+        titlePanel.add(titleRightPanel, BorderLayout.EAST);
         add(titlePanel, BorderLayout.NORTH);
 
         // === MAIN CONTENT ===
@@ -44,21 +103,6 @@ public class DashboardPanel extends JPanel {
         mainPanel.add(activityPanel, BorderLayout.CENTER);
 
         add(mainPanel, BorderLayout.CENTER);
-
-        // === CONTROL PANEL ===
-        JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        JButton refreshButton = new JButton("🔄 Refresh");
-        refreshButton.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        refreshButton.addActionListener(e -> refreshDashboard());
-        controlPanel.add(refreshButton);
-        add(controlPanel, BorderLayout.SOUTH);
-
-        // Initial data load
-        refreshDashboard();
-
-        // Auto-refresh every 30 seconds
-        refreshTimer = new Timer(30000, e -> refreshDashboard());
-        refreshTimer.start();
     }
 
     // ===== STATISTICS CARDS PANEL =====
@@ -159,6 +203,9 @@ public class DashboardPanel extends JPanel {
 
     // ===== DATA REFRESH =====
     private void refreshDashboard() {
+        // Show visual feedback that refresh is happening
+        setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+
         SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
             private int totalBooks, availableBooks, borrowedBooks, overdueBooks;
             private int totalMembers, activeMembers, borrowedToday;
@@ -184,6 +231,9 @@ public class DashboardPanel extends JPanel {
             @Override
             protected void done() {
                 updateUI();
+                setCursor(Cursor.getDefaultCursor());
+                System.out.println("🔄 Dashboard data refreshed at " +
+                        new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date()));
             }
 
             private void loadBookStatistics(Connection conn) throws SQLException {
@@ -340,14 +390,52 @@ public class DashboardPanel extends JPanel {
         worker.execute();
     }
 
+    // ===== AUTO-REFRESH TIMER =====
+    private void startAutoRefresh() {
+        if (autoRefreshTimer == null) {
+            autoRefreshTimer = new Timer(30000, e -> refreshDashboard()); // 30 seconds
+        }
+        if (!autoRefreshTimer.isRunning()) {
+            autoRefreshTimer.start();
+            System.out.println("▶️ Dashboard auto-refresh started (every 30 seconds)");
+        }
+    }
 
+    private void stopAutoRefresh() {
+        if (autoRefreshTimer != null && autoRefreshTimer.isRunning()) {
+            autoRefreshTimer.stop();
+            System.out.println("⏸️ Dashboard auto-refresh stopped");
+        }
+    }
+
+    // ✅ IMPLEMENT REFRESH LISTENER INTERFACE
+    @Override
+    public void onRefresh() {
+        // Use SwingUtilities to ensure UI updates on EDT
+        SwingUtilities.invokeLater(() -> {
+            refreshDashboard();
+            System.out.println("🔄 DashboardPanel auto-refreshed due to data change");
+        });
+    }
+
+    // ✅ CLEANUP WHEN PANEL IS REMOVED
     @Override
     public void removeNotify() {
-        if (refreshTimer != null && refreshTimer.isRunning()) {
-            refreshTimer.stop();
-            refreshTimer = null;
-        }
         super.removeNotify();
+
+        // Stop auto-refresh timer
+        stopAutoRefresh();
+
+        // Unregister from ALL panel types
+        RefreshManager rm = RefreshManager.getInstance();
+        rm.removeRefreshListener(RefreshManager.PANEL_DASHBOARD, this);
+        rm.removeRefreshListener(RefreshManager.PANEL_MEMBERS, this);
+        rm.removeRefreshListener(RefreshManager.PANEL_BOOKS, this);
+        rm.removeRefreshListener(RefreshManager.PANEL_BORROW, this);
+        rm.removeRefreshListener(RefreshManager.PANEL_FINES, this);
+        rm.removeRefreshListener(RefreshManager.PANEL_USERS, this);
+
+        System.out.println("🧹 DashboardPanel cleanup complete");
     }
 
     /**
