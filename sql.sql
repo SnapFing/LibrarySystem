@@ -1119,3 +1119,67 @@ SELECT * FROM current_overdues WHERE days_overdue >= 7;
 -- For more complex queries or procedures, refer to the main
 -- database_fixes.sql file or the application code.
 -- ================================================================
+
+===================    Latest Migrations =========================
+
+-- ============================================================
+-- MIGRATION: Borrow Requests + Enhanced Member Profile
+-- Run this against your library_db database
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- 1. Enhance members table with new profile fields
+-- ------------------------------------------------------------
+ALTER TABLE members
+  ADD COLUMN IF NOT EXISTS profile_picture VARCHAR(255)  DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS gender          VARCHAR(30)   DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS date_of_birth   DATE          DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS address         VARCHAR(255)  DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS created_at      TIMESTAMP     DEFAULT CURRENT_TIMESTAMP;
+
+-- ------------------------------------------------------------
+-- 2. borrow_requests table
+--    One row per student request. Librarian/admin then
+--    APPROVES (creates a borrowed_books row) or REJECTS.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS borrow_requests (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  member_id    INT          NOT NULL,
+  book_id      INT          NOT NULL,
+  request_date TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+  status       ENUM('PENDING','APPROVED','REJECTED') DEFAULT 'PENDING',
+  notes        VARCHAR(255) DEFAULT NULL,
+  processed_by VARCHAR(100) DEFAULT NULL,
+  processed_at TIMESTAMP    DEFAULT NULL,
+  FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
+  FOREIGN KEY (book_id)   REFERENCES books(id)   ON DELETE CASCADE
+);
+
+-- ------------------------------------------------------------
+-- 3. borrowed_books (actual borrow records after approval)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS borrowed_books (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  member_id   INT  NOT NULL,
+  book_id     INT  NOT NULL,
+  borrow_date DATE NOT NULL,
+  due_date    DATE NOT NULL,
+  return_date DATE DEFAULT NULL,
+  status      ENUM('BORROWED','RETURNED') DEFAULT 'BORROWED',
+  FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
+  FOREIGN KEY (book_id)   REFERENCES books(id)   ON DELETE CASCADE
+);
+
+-- ------------------------------------------------------------
+-- 4. return_requests (student-initiated return workflow)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS return_requests (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  borrow_id    INT          NOT NULL,
+  member_id    INT          NOT NULL,
+  request_date TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+  status       ENUM('PENDING','APPROVED','REJECTED') DEFAULT 'PENDING',
+  notes        VARCHAR(255) DEFAULT NULL,
+  FOREIGN KEY (borrow_id) REFERENCES borrowed_books(id) ON DELETE CASCADE,
+  FOREIGN KEY (member_id) REFERENCES members(id)        ON DELETE CASCADE
+);

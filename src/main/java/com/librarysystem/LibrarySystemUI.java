@@ -8,6 +8,7 @@ import com.formdev.flatlaf.intellijthemes.*;
 import com.librarysystem.db.DBHelper;
 import com.librarysystem.panels.*;
 //import com.librarysystem.panels.students.BooksByCategoryPanel;
+import com.librarysystem.panels.students.BorrowRequestsPanel;
 import com.librarysystem.panels.students.MyBorrowedBooksPanel;
 import com.librarysystem.panels.students.StudentBooksPanel;
 import com.librarysystem.panels.students.StudentProfilePanel;
@@ -147,39 +148,48 @@ public class LibrarySystemUI extends JFrame {
         // ===== Tabs Based on Role =====
         tabbedPane = new JTabbedPane();
 
-        // All roles can view members (read-only for students)
         if ("Student".equalsIgnoreCase(userRole)) {
-            // Student view - limited access
-            tabbedPane.addTab("📚 Browse Books", new StudentBooksPanel());
-            // tabbedPane.addTab("📂 Books by Category", new BooksByCategoryPanel());
-            tabbedPane.addTab("📖 My Borrowed Books", new MyBorrowedBooksPanel(username));
-            tabbedPane.addTab("👤 My Profile", new StudentProfilePanel(username));
+
+            // Student view
+            // Pass the logged-in username to every student panel that needs it.
+            tabbedPane.addTab("📚 Browse Books",
+                    new com.librarysystem.panels.students.StudentBooksPanel(username));
+
+            tabbedPane.addTab("📖 My Books & Requests",
+                    new com.librarysystem.panels.students.MyBorrowedBooksPanel(username));
+
+            tabbedPane.addTab("👤 My Profile",
+                    new com.librarysystem.panels.students.StudentProfilePanel(username));
 
         } else if ("Librarian".equalsIgnoreCase(userRole)) {
-            // Librarian view - can manage borrowing/returning
-            tabbedPane.addTab("👥 Members", new MembersPanel());
-            tabbedPane.addTab("📚 Books", new BooksPanel());
-            tabbedPane.addTab("🔄 Borrow/Return", new BorrowReturnPanel());
-            tabbedPane.addTab("📊 Reports", new ReportsPanel());
-            tabbedPane.addTab("Return Requests", new ReturnRequestsPanel());
+
+            // Librarian view
+            tabbedPane.addTab("👥 Members",         new MembersPanel());
+            tabbedPane.addTab("📚 Books",            new BooksPanel());
+            tabbedPane.addTab("🔄 Borrow/Return",    new BorrowReturnPanel());
+            tabbedPane.addTab("📋 Borrow Requests",  new BorrowRequestsPanel()); // ← NEW
+            tabbedPane.addTab("📤 Return Requests",  new ReturnRequestsPanel());
+            tabbedPane.addTab("📊 Reports",          new ReportsPanel());
 
         } else if ("Admin".equalsIgnoreCase(userRole)) {
-            // Admin view - full access
-            tabbedPane.addTab("Dashboard", new DashboardPanel());
-            tabbedPane.addTab("👥 Members", new MembersPanel());
-            tabbedPane.addTab("📚 Books", new BooksPanel());
-            tabbedPane.addTab("🔄 Borrow/Return", new BorrowReturnPanel());
-            tabbedPane.addTab("Return Requests", new ReturnRequestsPanel());
+
+            // Admin view — full access
+            tabbedPane.addTab("Dashboard",           new DashboardPanel());
+            tabbedPane.addTab("👥 Members",          new MembersPanel());
+            tabbedPane.addTab("📚 Books",            new BooksPanel());
+            tabbedPane.addTab("🔄 Borrow/Return",    new BorrowReturnPanel());
+            tabbedPane.addTab("📋 Borrow Requests",  new BorrowRequestsPanel()); // ← NEW
+            tabbedPane.addTab("📤 Return Requests",  new ReturnRequestsPanel());
             tabbedPane.addTab("👨‍💼 User Management", new UserManagementPanel());
-            tabbedPane.addTab("Fines", new FinesPanel());
-            tabbedPane.addTab("📊 Reports", new ReportsPanel());
-            tabbedPane.addTab("⚙️ System Settings", new SystemSettingsPanel());
-            tabbedPane.addTab("Database Monitor", new DatabaseMonitorPanel());
+            tabbedPane.addTab("Fines",               new FinesPanel());
+            tabbedPane.addTab("📊 Reports",          new ReportsPanel());
+            tabbedPane.addTab("⚙️ System Settings",  new SystemSettingsPanel());
+            tabbedPane.addTab("Database Monitor",    new DatabaseMonitorPanel());
         }
 
         add(tabbedPane, BorderLayout.CENTER);
 
-        // Start clock
+        // Start Clock
         startClock();
 
         setVisible(true);

@@ -4,6 +4,7 @@ import com.formdev.flatlaf.FlatDarculaLaf;
 import com.librarysystem.LibrarySystemUI;
 import com.librarysystem.db.DBHelper;
 import com.librarysystem.utils.PasswordUtil;
+import com.librarysystem.utils.RefreshManager;
 
 import javax.swing.*;
 import java.awt.*;
@@ -313,7 +314,6 @@ public class LoginUI extends JFrame {
     }
 
     // ===== Signup Dialog =====
-    // ===== Signup Dialog =====
     class SignupDialog extends JDialog {
         private JTextField fnameField, lnameField, emailField, phoneField;
         private JPasswordField passwordField, confirmPasswordField;
@@ -480,8 +480,10 @@ public class LoginUI extends JFrame {
                 // Hash password
                 String hashedPassword = PasswordUtil.hashPassword(password);
 
-                // Insert into members table
-                String insertSql = "INSERT INTO members (name, fname, lname, email, phone, password, role) VALUES (?, ?, ?, ?, ?, ?, 'Student')";
+                // Insert into member table
+                String insertSql = "INSERT INTO members" +
+                    "(name, fname, lname, email, phone, password, role_is_active, membership_date) " +
+                        "VALUES (?, ?, ?, ?, ?, ?, 'Student' TRUE, NOW())";
                 PreparedStatement insertStmt = conn.prepareStatement(insertSql);
                 insertStmt.setString(1, username);  // name column = username
                 insertStmt.setString(2, fname);     // fname column
@@ -490,6 +492,12 @@ public class LoginUI extends JFrame {
                 insertStmt.setString(5, phone);
                 insertStmt.setString(6, hashedPassword);
                 insertStmt.executeUpdate();
+
+                // Notify MemberPanel and Dashboard to refresh immediately
+                com.librarysystem.utils.RefreshManager.getInstance()
+                                .notifyRefresh(RefreshManager.PANEL_MEMBERS);
+                com.librarysystem.utils.RefreshManager.getInstance()
+                                .notifyRefresh(RefreshManager.PANEL_DASHBOARD);
 
                 JOptionPane.showMessageDialog(this,
                         "✅ Registration successful!\n\n" +
