@@ -78,7 +78,10 @@ public class DBHelper {
     }
 
     public static void shutdown() {
-        if (provider != null) provider.close();
+        if (provider != null) {
+            provider.close();
+            provider = null;
+        }
     }
 
     // ========== Connection Providers ==========
@@ -117,4 +120,18 @@ public class DBHelper {
         public void close() { if (ds instanceof org.h2.jdbcx.JdbcConnectionPool) ((org.h2.jdbcx.JdbcConnectionPool)ds).dispose(); }
         public String getStats() { return "Embedded H2 active"; }
     }
+
+    public static synchronized void reinitialize() {
+        shutdown();
+        dbAvailable = false;
+        errorMessage = null;
+        try {
+            loadConfiguration();
+        } catch (Exception e) {
+            dbAvailable = false;
+            errorMessage = e.getMessage();
+            LOGGER.log(Level.SEVERE, "Reinitialization failed", e);
+        }
+    }
+
 }

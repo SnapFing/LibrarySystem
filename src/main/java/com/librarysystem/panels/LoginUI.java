@@ -1,61 +1,56 @@
 package com.librarysystem.panels;
 
 import com.formdev.flatlaf.FlatDarculaLaf;
-import com.librarysystem.LibrarySystemUI;
+import com.librarysystem.core.Session;
+import com.librarysystem.db.AuthenticationService;
 import com.librarysystem.db.DBHelper;
 import com.librarysystem.utils.PasswordUtil;
-import com.librarysystem.utils.RefreshManager;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
+import java.sql.SQLException;
 
 public class LoginUI extends JFrame {
-    private JTextField usernameField;
+    private JTextField loginField;     // username or email
     private JPasswordField passwordField;
     private JButton loginButton, signupButton;
     private JLabel statusLabel;
 
     public LoginUI() {
+        // Check if setup is needed
+        if (!DBHelper.isAvailable()) {
+            showSetupWizard();
+            return; // will exit after wizard
+        }
+
         setTitle("📚 Library Management System - Login");
         setSize(700, 650);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setResizable(false);
 
-        // ===== Set Custom Icon =====
         try {
             ImageIcon icon = new ImageIcon(getClass().getResource("/panels/SNAPFING-LOGO.png"));
             setIconImage(icon.getImage());
-        } catch (Exception e) {
-            // Icon not found, continue without it
-        }
+        } catch (Exception ignored) {}
 
-        // ===== Background Panel =====
         BackgroundPanel background = new BackgroundPanel("/panels/lib1.jpg");
         background.setLayout(new BorderLayout());
         setContentPane(background);
 
-        // ===== Logo Panel =====
+        // Logo
         JPanel logoPanel = new JPanel();
         logoPanel.setOpaque(false);
         logoPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 0, 30));
-
         try {
             ImageIcon logoIcon = new ImageIcon(getClass().getResource("/panels/SNAPFING-LOGO.png"));
             Image scaledLogo = logoIcon.getImage().getScaledInstance(150, 150, Image.SCALE_SMOOTH);
-            JLabel logoLabel = new JLabel(new ImageIcon(scaledLogo));
-            logoPanel.add(logoLabel);
-        } catch (Exception e) {
-            // Logo not found, continue without it
-        }
-
+            logoPanel.add(new JLabel(new ImageIcon(scaledLogo)));
+        } catch (Exception ignored) {}
         background.add(logoPanel, BorderLayout.NORTH);
 
-        // ===== Login Form Panel =====
+        // Form panel
         RoundedPanel formPanel = new RoundedPanel(20);
         formPanel.setLayout(new GridBagLayout());
         formPanel.setBackground(new Color(0, 0, 0, 180));
@@ -63,33 +58,30 @@ public class LoginUI extends JFrame {
         gbc.insets = new Insets(10, 15, 10, 15);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
-        // Title
         JLabel titleLabel = new JLabel("Library Management System", JLabel.CENTER);
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
         titleLabel.setForeground(Color.WHITE);
         gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
         formPanel.add(titleLabel, gbc);
 
-        // Subtitle
         JLabel subtitleLabel = new JLabel("Sign in to continue", JLabel.CENTER);
         subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         subtitleLabel.setForeground(new Color(200, 200, 200));
         gbc.gridy = 1;
         formPanel.add(subtitleLabel, gbc);
 
-        // Username
-        JLabel userLabel = new JLabel("👤 Username:");
+        // Login identifier (username or email)
+        JLabel userLabel = new JLabel("👤 Username or Email:");
         userLabel.setForeground(Color.WHITE);
-        usernameField = new JTextField(15);
-        usernameField.setOpaque(false);
-        usernameField.setForeground(Color.WHITE);
+        loginField = new JTextField(15);
+        loginField.setOpaque(false);
+        loginField.setForeground(Color.WHITE);
 
         gbc.gridwidth = 1; gbc.gridy = 2; gbc.gridx = 0;
         formPanel.add(userLabel, gbc);
         gbc.gridx = 1;
-        formPanel.add(usernameField, gbc);
+        formPanel.add(loginField, gbc);
 
-        // Password
         JLabel passLabel = new JLabel("🔑 Password:");
         passLabel.setForeground(Color.WHITE);
         passwordField = new JPasswordField(15);
@@ -101,44 +93,37 @@ public class LoginUI extends JFrame {
         gbc.gridx = 1;
         formPanel.add(passwordField, gbc);
 
-        // Login Button
         loginButton = new JButton("🔓 Login");
         loginButton.setFont(new Font("Segoe UI", Font.BOLD, 14));
         gbc.gridx = 0; gbc.gridy = 4; gbc.gridwidth = 2;
         formPanel.add(loginButton, gbc);
 
-        // Status Label
         statusLabel = new JLabel(" ", JLabel.CENTER);
         statusLabel.setForeground(Color.RED);
         gbc.gridy = 5;
         formPanel.add(statusLabel, gbc);
 
-        // Separator
         JSeparator separator = new JSeparator();
         separator.setForeground(Color.GRAY);
         gbc.gridy = 6;
         formPanel.add(separator, gbc);
 
-        // New User Label
         JLabel newUserLabel = new JLabel("Don't have an account?", JLabel.CENTER);
         newUserLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
         newUserLabel.setForeground(new Color(200, 200, 200));
         gbc.gridy = 7;
         formPanel.add(newUserLabel, gbc);
 
-        // Signup Button
         signupButton = new JButton("📝 Sign Up as Student");
         signupButton.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         gbc.gridy = 8;
         formPanel.add(signupButton, gbc);
 
-        // Center the form panel
         JPanel centerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 30));
         centerPanel.setOpaque(false);
         centerPanel.add(formPanel);
         background.add(centerPanel, BorderLayout.CENTER);
 
-        // ===== Actions =====
         loginButton.addActionListener(this::handleLogin);
         passwordField.addActionListener(this::handleLogin);
         signupButton.addActionListener(this::handleSignup);
@@ -146,176 +131,54 @@ public class LoginUI extends JFrame {
         setVisible(true);
     }
 
+    private void showSetupWizard() {
+        SetupWizard wizard = new SetupWizard(this);
+        wizard.setVisible(true);
+    }
+
     private void handleLogin(ActionEvent e) {
-        String username = usernameField.getText().trim();
+        String login = loginField.getText().trim();
         String password = new String(passwordField.getPassword());
 
-        if (username.isEmpty() || password.isEmpty()) {
-            statusLabel.setText("Please enter username & password.");
+        if (login.isEmpty() || password.isEmpty()) {
+            statusLabel.setText("Please enter username/email and password.");
             return;
         }
 
-        login(username, password);
-    }
+        try {
+            Session session = AuthenticationService.login(login, password);
+            // Audit log (simplified)
+            try (var conn = DBHelper.getConnection()) {
+                String action = "Login";
+                String details = "User '" + login + "' logged in as " + session.getRole();
+                conn.prepareStatement(
+                        "INSERT INTO audit_logs (user_id, username, action, table_name, record_id, details) "
+                                + "VALUES (?, ?, ?, NULL, NULL, ?)"
+                ).executeUpdate();
+            } catch (Exception ignored) {}
 
-    private void login(String username, String password) {
-        System.out.println("=== LOGIN ATTEMPT ===");
-        System.out.println("Username: " + username);
+            JOptionPane.showMessageDialog(this,
+                    "Welcome, " + session.getFullName() + "!\nRole: " + session.getRole(),
+                    "Login Successful", JOptionPane.INFORMATION_MESSAGE);
+            SwingUtilities.invokeLater(() -> new com.librarysystem.LibrarySystemUI(session.getRole(), session.getUsername()));
+            dispose();
 
-        try (Connection conn = DBHelper.getConnection()) {
-            System.out.println("Database connection established");
-
-            // Try to find user in both users and members tables
-            String role = null;
-            boolean isActive = true;
-            boolean found = false;
-            String source = null;
-
-            // 1. Check users table (Admin/Librarian)
-            String userSql = "SELECT password, role, is_active FROM users WHERE username=?";
-            PreparedStatement userStmt = conn.prepareStatement(userSql);
-            userStmt.setString(1, username);
-            ResultSet userRs = userStmt.executeQuery();
-
-            if (userRs.next()) {
-                String storedPassword = userRs.getString("password");
-                role = userRs.getString("role");
-
-                // Check if is_active column exists
-                try {
-                    isActive = userRs.getBoolean("is_active");
-                } catch (Exception ex) {
-                    isActive = true; // Default to active if column doesn't exist
-                }
-
-                System.out.println("Found in users table - Role: " + role);
-
-                // Verify password
-                boolean passwordMatches = false;
-                if (storedPassword.contains(":")) {
-                    // PBKDF2 hashed
-                    passwordMatches = PasswordUtil.verifyPassword(password, storedPassword);
-                } else {
-                    // Plain text (backwards compatibility)
-                    passwordMatches = password.equals(storedPassword);
-                }
-
-                if (passwordMatches && isActive) {
-                    found = true;
-                    source = "users";
-
-                    // Update last login
-                    try {
-                        String updateSql = "UPDATE users SET last_login=NOW() WHERE username=?";
-                        PreparedStatement updateStmt = conn.prepareStatement(updateSql);
-                        updateStmt.setString(1, username);
-                        updateStmt.executeUpdate();
-                    } catch (Exception ex) {
-                        // last_login column might not exist
-                    }
-                } else if (!isActive) {
-                    statusLabel.setText("Account is deactivated. Contact admin.");
-                    return;
-                } else {
-                    statusLabel.setText("Invalid username or password.");
-                    return;
-                }
-            }
-
-            // 2. If not found in users, check members table (Students)
-            if (!found) {
-                String memberSql = "SELECT password, role FROM members WHERE name=?";
-                PreparedStatement memberStmt = conn.prepareStatement(memberSql);
-                memberStmt.setString(1, username);
-                ResultSet memberRs = memberStmt.executeQuery();
-
-                if (memberRs.next()) {
-                    String storedPassword = memberRs.getString("password");
-
-                    // Check if password column exists and has value
-                    if (storedPassword == null || storedPassword.isEmpty()) {
-                        statusLabel.setText("Please sign up first to set your password.");
-                        return;
-                    }
-
-                    role = "Student"; // Default role for members
-                    try {
-                        String dbRole = memberRs.getString("role");
-                        if (dbRole != null && !dbRole.isEmpty()) {
-                            role = dbRole;
-                        }
-                    } catch (Exception ex) {
-                        // role column might not exist
-                    }
-
-                    System.out.println("Found in members table - Role: " + role);
-
-                    // Verify password
-                    boolean passwordMatches = false;
-                    if (storedPassword.contains(":")) {
-                        // PBKDF2 hashed
-                        passwordMatches = PasswordUtil.verifyPassword(password, storedPassword);
-                    } else {
-                        // Plain text (backwards compatibility)
-                        passwordMatches = password.equals(storedPassword);
-                    }
-
-                    if (passwordMatches) {
-                        found = true;
-                        source = "members";
-
-                        // Update last login
-                        try {
-                            String updateSql = "UPDATE members SET last_login=NOW() WHERE name=?";
-                            PreparedStatement updateStmt = conn.prepareStatement(updateSql);
-                            updateStmt.setString(1, username);
-                            updateStmt.executeUpdate();
-                        } catch (Exception ex) {
-                            // last_login column might not exist
-                        }
-                    } else {
-                        statusLabel.setText("Invalid username or password.");
-                        return;
-                    }
-                } else {
-                    statusLabel.setText("Invalid username or password.");
-                    return;
-                }
-            }
-
-            if (found && role != null) {
-                System.out.println("Login successful! Role: " + role + " (from " + source + ")");
-                JOptionPane.showMessageDialog(this,
-                        "Welcome, " + username + "!\nRole: " + role,
-                        "Login Successful",
-                        JOptionPane.INFORMATION_MESSAGE);
-
-                // Pass both role and username to the LibrarySystemUI
-                final String finalRole = role;
-                final String finalUsername = username;
-
-                SwingUtilities.invokeLater(() -> new LibrarySystemUI(finalRole, finalUsername));
-                dispose();
-            }
-
-        } catch (Exception ex) {
-            System.err.println("=== LOGIN ERROR ===");
+        } catch (AuthenticationService.AuthenticationException ex) {
+            statusLabel.setText(ex.getMessage());
+        } catch (SQLException ex) {
+            statusLabel.setText("Database error. Please try again.");
             ex.printStackTrace();
-            statusLabel.setText("Error connecting to database.");
         }
-
-        System.out.println("=== END LOGIN ATTEMPT ===\n");
     }
 
     private void handleSignup(ActionEvent e) {
-        // Show signup dialog
         SignupDialog signupDialog = new SignupDialog(this);
         signupDialog.setVisible(true);
     }
 
-    // ===== Signup Dialog =====
+    // ===== Signup Dialog (adapted for new schema) =====
     class SignupDialog extends JDialog {
-        private JTextField fnameField, lnameField, emailField, phoneField;
+        private JTextField fnameField, mnameField, lnameField, emailField, phoneField;
         private JPasswordField passwordField, confirmPasswordField;
         private JButton registerButton, cancelButton;
 
@@ -325,85 +188,79 @@ public class LoginUI extends JFrame {
             setLocationRelativeTo(parent);
             setLayout(new BorderLayout(10, 10));
 
-            // Form Panel
             JPanel formPanel = new JPanel(new GridBagLayout());
             formPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
             GridBagConstraints gbc = new GridBagConstraints();
             gbc.insets = new Insets(8, 8, 8, 8);
             gbc.fill = GridBagConstraints.HORIZONTAL;
 
-            // Title
             JLabel titleLabel = new JLabel("📝 Student Registration", JLabel.CENTER);
             titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
             gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
             formPanel.add(titleLabel, gbc);
-
             gbc.gridwidth = 1;
 
-            // First Name
+            // First name
             gbc.gridx = 0; gbc.gridy = 1;
             formPanel.add(new JLabel("First Name:"), gbc);
             gbc.gridx = 1;
             fnameField = new JTextField(20);
             formPanel.add(fnameField, gbc);
 
-            // Last Name
+            // Middle name (optional)
             gbc.gridx = 0; gbc.gridy = 2;
+            formPanel.add(new JLabel("Middle Name:"), gbc);
+            gbc.gridx = 1;
+            mnameField = new JTextField(20);
+            formPanel.add(mnameField, gbc);
+
+            // Last name
+            gbc.gridx = 0; gbc.gridy = 3;
             formPanel.add(new JLabel("Last Name:"), gbc);
             gbc.gridx = 1;
             lnameField = new JTextField(20);
             formPanel.add(lnameField, gbc);
 
             // Email
-            gbc.gridx = 0; gbc.gridy = 3;
+            gbc.gridx = 0; gbc.gridy = 4;
             formPanel.add(new JLabel("Email:"), gbc);
             gbc.gridx = 1;
             emailField = new JTextField(20);
             formPanel.add(emailField, gbc);
 
             // Phone
-            gbc.gridx = 0; gbc.gridy = 4;
+            gbc.gridx = 0; gbc.gridy = 5;
             formPanel.add(new JLabel("Phone:"), gbc);
             gbc.gridx = 1;
             phoneField = new JTextField(20);
             formPanel.add(phoneField, gbc);
 
             // Password
-            gbc.gridx = 0; gbc.gridy = 5;
+            gbc.gridx = 0; gbc.gridy = 6;
             formPanel.add(new JLabel("Password:"), gbc);
             gbc.gridx = 1;
             passwordField = new JPasswordField(20);
             formPanel.add(passwordField, gbc);
 
-            // Confirm Password
-            gbc.gridx = 0; gbc.gridy = 6;
+            // Confirm password
+            gbc.gridx = 0; gbc.gridy = 7;
             formPanel.add(new JLabel("Confirm Password:"), gbc);
             gbc.gridx = 1;
             confirmPasswordField = new JPasswordField(20);
             formPanel.add(confirmPasswordField, gbc);
 
-            // Password requirements
             JLabel reqLabel = new JLabel("<html><small>Password must have: 8+ chars, letter, digit, special char</small></html>");
             reqLabel.setForeground(Color.GRAY);
-            gbc.gridx = 0; gbc.gridy = 7; gbc.gridwidth = 2;
+            gbc.gridx = 0; gbc.gridy = 8; gbc.gridwidth = 2;
             formPanel.add(reqLabel, gbc);
-
-            // Username info
-            JLabel usernameInfoLabel = new JLabel("<html><small><i>Username will be auto-generated from your name</i></small></html>");
-            usernameInfoLabel.setForeground(Color.GRAY);
-            gbc.gridy = 8;
-            formPanel.add(usernameInfoLabel, gbc);
 
             add(formPanel, BorderLayout.CENTER);
 
-            // Button Panel
             JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
             registerButton = new JButton("✅ Register");
             cancelButton = new JButton("❌ Cancel");
-
             registerButton.addActionListener(ev -> handleRegister());
             cancelButton.addActionListener(ev -> dispose());
-
             buttonPanel.add(registerButton);
             buttonPanel.add(cancelButton);
             add(buttonPanel, BorderLayout.SOUTH);
@@ -411,117 +268,54 @@ public class LoginUI extends JFrame {
 
         private void handleRegister() {
             String fname = fnameField.getText().trim();
+            String mname = mnameField.getText().trim();
             String lname = lnameField.getText().trim();
             String email = emailField.getText().trim();
             String phone = phoneField.getText().trim();
             String password = new String(passwordField.getPassword()).trim();
             String confirmPassword = new String(confirmPasswordField.getPassword()).trim();
 
-            // Validation
             if (fname.isEmpty() || lname.isEmpty() || email.isEmpty() || phone.isEmpty() || password.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "❌ Please fill all fields!");
+                JOptionPane.showMessageDialog(this, "❌ Please fill all required fields!");
                 return;
             }
-
             if (!email.matches("^[\\w.-]+@[\\w.-]+\\.\\w+$")) {
                 JOptionPane.showMessageDialog(this, "❌ Invalid email format!");
                 return;
             }
-
             if (!phone.matches("\\d{10}")) {
                 JOptionPane.showMessageDialog(this, "❌ Phone must be 10 digits!");
                 return;
             }
-
             if (!password.equals(confirmPassword)) {
                 JOptionPane.showMessageDialog(this, "❌ Passwords do not match!");
                 return;
             }
-
-            // Validate password strength
             String strengthError = PasswordUtil.validatePasswordStrength(password);
             if (strengthError != null) {
                 JOptionPane.showMessageDialog(this, "❌ " + strengthError);
                 return;
             }
 
-            // Generate username: firstname.lastname or firstname.lastname2 if duplicate
-            String baseUsername = (fname + "." + lname).toLowerCase().replaceAll("\\s+", "");
-            String username = baseUsername;
-
-            // Register in database
-            try (Connection conn = DBHelper.getConnection()) {
-                // Check if email already exists
-                String checkEmailSql = "SELECT COUNT(*) FROM members WHERE email=?";
-                PreparedStatement checkEmailStmt = conn.prepareStatement(checkEmailSql);
-                checkEmailStmt.setString(1, email);
-                ResultSet emailRs = checkEmailStmt.executeQuery();
-                emailRs.next();
-                if (emailRs.getInt(1) > 0) {
-                    JOptionPane.showMessageDialog(this, "❌ Email already exists!");
-                    return;
-                }
-
-                // Generate unique username
-                String checkUsernameSql = "SELECT COUNT(*) FROM members WHERE name=?";
-                PreparedStatement checkUsernameStmt = conn.prepareStatement(checkUsernameSql);
-                int counter = 1;
-                while (true) {
-                    checkUsernameStmt.setString(1, username);
-                    ResultSet usernameRs = checkUsernameStmt.executeQuery();
-                    usernameRs.next();
-                    if (usernameRs.getInt(1) == 0) {
-                        break; // Username is unique
-                    }
-                    username = baseUsername + counter;
-                    counter++;
-                }
-
-                // Hash password
-                String hashedPassword = PasswordUtil.hashPassword(password);
-
-                // Insert into member table
-                String insertSql = "INSERT INTO members" +
-                    "(name, fname, lname, email, phone, password, role_is_active, membership_date) " +
-                        "VALUES (?, ?, ?, ?, ?, ?, 'Student' TRUE, NOW())";
-                PreparedStatement insertStmt = conn.prepareStatement(insertSql);
-                insertStmt.setString(1, username);  // name column = username
-                insertStmt.setString(2, fname);     // fname column
-                insertStmt.setString(3, lname);     // lname column
-                insertStmt.setString(4, email);
-                insertStmt.setString(5, phone);
-                insertStmt.setString(6, hashedPassword);
-                insertStmt.executeUpdate();
-
-                // Notify MemberPanel and Dashboard to refresh immediately
-                com.librarysystem.utils.RefreshManager.getInstance()
-                                .notifyRefresh(RefreshManager.PANEL_MEMBERS);
-                com.librarysystem.utils.RefreshManager.getInstance()
-                                .notifyRefresh(RefreshManager.PANEL_DASHBOARD);
-
+            try {
+                AuthenticationService.registerMember(fname, mname.isEmpty() ? null : mname, lname, email, phone, password);
                 JOptionPane.showMessageDialog(this,
-                        "✅ Registration successful!\n\n" +
-                                "Your login credentials:\n" +
-                                "Username: " + username + "\n" +
-                                "Password: (the password you entered)\n\n" +
-                                "Please remember your username!",
-                        "Success",
-                        JOptionPane.INFORMATION_MESSAGE);
-
+                        "✅ Registration successful!\nYou can now log in using your email and password.",
+                        "Success", JOptionPane.INFORMATION_MESSAGE);
                 dispose();
-
-            } catch (Exception ex) {
-                ex.printStackTrace();
-                JOptionPane.showMessageDialog(this,
-                        "❌ Error during registration:\n" + ex.getMessage());
+            } catch (SQLException ex) {
+                if (ex.getErrorCode() == 1062 || ex.getMessage().contains("Duplicate")) {
+                    JOptionPane.showMessageDialog(this, "❌ This email is already registered.");
+                } else {
+                    JOptionPane.showMessageDialog(this, "❌ Registration error: " + ex.getMessage());
+                }
             }
         }
     }
 
-    // ===== Background Panel Class =====
+    // ===== Background Panel (unchanged) =====
     static class BackgroundPanel extends JPanel {
         private Image backgroundImage;
-
         public BackgroundPanel(String imagePath) {
             try {
                 ImageIcon icon = new ImageIcon(getClass().getResource(imagePath));
@@ -530,7 +324,6 @@ public class LoginUI extends JFrame {
                 backgroundImage = null;
             }
         }
-
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
@@ -540,16 +333,14 @@ public class LoginUI extends JFrame {
         }
     }
 
-    // ===== Rounded Panel Class =====
+    // ===== Rounded Panel (unchanged) =====
     static class RoundedPanel extends JPanel {
         private final int cornerRadius;
-
         public RoundedPanel(int radius) {
             super();
             this.cornerRadius = radius;
             setOpaque(false);
         }
-
         @Override
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
